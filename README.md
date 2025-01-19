@@ -2,6 +2,11 @@
 
 Modest PHP analogue for [Pydantic](https://github.com/pydantic/pydantic). PHP8 only.
 
+## Installation
+
+```
+composer require schemantic/schemantic
+```
 
 ## Features:
 
@@ -13,7 +18,6 @@ Modest PHP analogue for [Pydantic](https://github.com/pydantic/pydantic). PHP8 o
 - DateTime and Enum dump & parsing
 - Fields aliases
 - Fields validations
-- Serialized string size optimization
 - 3 separate datetime formats: for date, time and datetime
 - `unix` datetime format support
 
@@ -22,7 +26,7 @@ Modest PHP analogue for [Pydantic](https://github.com/pydantic/pydantic). PHP8 o
 
 1. built-in PHP type
 2. DateTime and DateTimeImmutable
-3. UnitEnum and BackedEnum
+3. UnitEnumCase and BackedEnumCase
 4. Sub-schemas
 5. Arrays of types above (via `[]` sign)
 6. Nullable types (via `?` sign)
@@ -33,7 +37,6 @@ Modest PHP analogue for [Pydantic](https://github.com/pydantic/pydantic). PHP8 o
 1. **Avoid using interfaces**. Schema will know the real class to parse into
 2. **Union and generic types are not allowed** in most cases
 3. When using array of sub-schemas as property type (in `@param` tag), **specify the full path to the sub-schema class** (See [example](#recursive-parsing))
-4. When using `SerialSchemaTrait`, don't use `readonly` keyword
 
 
 ## Usage:
@@ -46,11 +49,10 @@ Sub-sub-schema:
 class Category extends \Schemantic\Schema
 {
     public function __construct(
-
         public readonly string $id,
         public readonly string $icon
-
-    ) { }
+    ) {
+    }
 }
 ```
 
@@ -65,12 +67,11 @@ class MenuChapter extends \Schemantic\Schema
      * @param \App\Schemas\Category[] $categories
      */
     public function __construct(
-
         public readonly string $id,
         public readonly string $icon,
         public readonly array $categories
-
-    ) { }
+    ) {
+    }
 }
 ```
 
@@ -83,13 +84,12 @@ class WorkingHours implements \Schemantic\SchemaInterface
     use \Schemantic\SchemaTrait;
 
     public function __construct(
-
         public \DateTimeImmutable $weekdayOpen,
         public \DateTimeImmutable $weekdayClose,
         public \DateTimeImmutable $weekendOpen,
         public \DateTimeImmutable $weekendClose
-
-    ) { }
+    ) {
+    }
 }
 ```
 
@@ -101,12 +101,11 @@ class Menu extends \Schemantic\Schema
      * @param \App\Schema\MenuChapter[] $chapters
      */
     public function __construct(
-
         public array $chapters,
         public readonly WorkingHours $workingHours,
         public string $language = 'en'
-
-    ) { }
+    ) {
+    }
 }
 ```
 
@@ -208,12 +207,11 @@ Schema:
 class UserSchema extends \Schemantic\Schema
 {
     public function __construct(
-
         public readonly ?int $id,
         public readonly StatusEnum $status,
         public readonly \DateTimeImmutable $createdAt
-
-    ) { }
+    ) {
+    }
 }
 ```
 
@@ -268,8 +266,7 @@ class UserSchema extends \Schemantic\Schema
         public readonly string $lastname,
         public readonly string $username,
         public readonly string $email
-    )
-    {
+    ) {
         $this->validate(true);
     }
 }
