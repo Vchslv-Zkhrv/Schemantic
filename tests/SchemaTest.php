@@ -1,4 +1,5 @@
 <?php
+// phpcs:ignoreFile
 
 namespace Schemantic\Tests;
 
@@ -383,7 +384,10 @@ class SchemaTest extends TestCase
             true
         );
 
-        $updated = $original->update(['lname' => 'testL', 'fname' => 'testF'], true);
+        $updated = $original->update(
+            ['lname' => 'testL', 'fname' => 'testF'],
+            true
+        );
 
         $this->assertTrue($updated !== $original);
         $this->assertEquals('testFname', $original->firstname);
@@ -455,8 +459,14 @@ class SchemaTest extends TestCase
 
         $filter = FilterSchema::fromJSON($json);
 
-        $this->assertEquals((new \DateTimeImmutable('2024-01-01T00:00:00'))->getTimestamp(), $filter->dateFrom->getTimestamp());
-        $this->assertEquals((new \DateTimeImmutable('2024-12-12T23:59:59'))->getTimestamp(), $filter->dateTo->getTimestamp());
+        $this->assertEquals(
+            (new \DateTimeImmutable('2024-01-01T00:00:00'))->getTimestamp(),
+            $filter->dateFrom->getTimestamp()
+        );
+        $this->assertEquals(
+            (new \DateTimeImmutable('2024-12-12T23:59:59'))->getTimestamp(),
+            $filter->dateTo->getTimestamp()
+        );
         $this->assertEquals(StatusEnum::ACTIVE, $filter->status);
         $this->assertCount(3, $filter->ids);
         $this->assertTrue($filter->strict);
@@ -505,8 +515,79 @@ class SchemaTest extends TestCase
         $dateTo = new \DateTime('now');
         $dateFrom = new \DateTimeImmutable('-1 day');
 
-        $array = [[1,2,3], false, [['name1', 'icon1'], ['name1', 'icon1']], $dateTo->format('Y-m-d\TH:i:s'), $dateFrom->format('Y-m-d\TH:i:s'), StatusEnum::DELETED->value];
-        $schema = FilterSchema::fromArray($array, parse: true, dateTimeFormat: 'Y-m-d\TH:i:s');
+        $array = [
+            [1,2,3],
+            false,
+            [['name1', 'icon1'], ['name1', 'icon1']],
+            $dateTo->format('Y-m-d\TH:i:s'),
+            $dateFrom->format('Y-m-d\TH:i:s'),
+            StatusEnum::DELETED->value
+        ];
+
+        $schema = FilterSchema::fromArray(
+            raw: $array,
+            parse: true,
+            dateTimeFormat: 'Y-m-d\TH:i:s'
+        );
+
+        $this->assertEquals([1,2,3], $schema->ids);
+        $this->assertEquals(false, $schema->strict);
+        $this->assertCount(2, $schema->tags);
+        $this->assertEquals($dateTo->getTimestamp(), $schema->dateTo->getTimestamp());
+        $this->assertEquals($dateFrom->getTimestamp(), $schema->dateFrom->getTimestamp());
+    }
+
+    public function testFromNumericArrayShorterThanFeilds(): void
+    {
+        $dateTo = new \DateTime('now');
+        $dateFrom = new \DateTimeImmutable('-1 day');
+
+        // status is mising, should use default value
+        $array = [
+            [1,2,3],
+            false,
+            [['name1', 'icon1'], ['name1', 'icon1']],
+            $dateTo->format('Y-m-d\TH:i:s'),
+            $dateFrom->format('Y-m-d\TH:i:s')
+        ];
+
+        $schema = FilterSchema::fromArray(
+            raw: $array,
+            parse: true,
+            dateTimeFormat: 'Y-m-d\TH:i:s'
+        );
+
+        $this->assertEquals([1,2,3], $schema->ids);
+        $this->assertEquals(false, $schema->strict);
+        $this->assertCount(2, $schema->tags);
+        $this->assertEquals($dateTo->getTimestamp(), $schema->dateTo->getTimestamp());
+        $this->assertEquals($dateFrom->getTimestamp(), $schema->dateFrom->getTimestamp());
+        $this->assertNull($schema->status);
+    }
+
+    public function testFromNumericArrayBiggerThanFields(): void
+    {
+        $dateTo = new \DateTime('now');
+        $dateFrom = new \DateTimeImmutable('-1 day');
+
+        // some extra fields
+        $array = [
+            [1,2,3],
+            false,
+            [['name1', 'icon1'], ['name1', 'icon1']],
+            $dateTo->format('Y-m-d\TH:i:s'),
+            $dateFrom->format('Y-m-d\TH:i:s'),
+            StatusEnum::DELETED->value,
+            1,
+            2,
+            3
+        ];
+
+        $schema = FilterSchema::fromArray(
+            raw: $array,
+            parse: true,
+            dateTimeFormat: 'Y-m-d\TH:i:s'
+        );
 
         $this->assertEquals([1,2,3], $schema->ids);
         $this->assertEquals(false, $schema->strict);
@@ -601,7 +682,7 @@ class SchemaTest extends TestCase
                 [1,2,3],
                 true,
                 [
-                    ["row1name1", null], 
+                    ["row1name1", null],
                     ["row1name2", "row1icon2"]
                 ],
                 "2024-12-31T23:59:59",
