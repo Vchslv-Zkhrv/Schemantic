@@ -19,12 +19,12 @@ composer require schemantic/schemantic
 - Fields aliases
 - Fields validations
 - 3 separate datetime formats: for date, time and datetime
-- `unix` datetime format support
+- Unix datetime format support
 
 
-## 100% Supported types:
+## Supported types:
 
-1. built-in PHP type
+1. built-in PHP types
 2. DateTime and DateTimeImmutable
 3. UnitEnumCase and BackedEnumCase
 4. Sub-schemas
@@ -219,8 +219,7 @@ Reading from object:
 ```php
 $user = new User(StatusEnum::ACTIVE);
 
-$userSchema = UserSchema::fromObject($user);
-$responseBody = $userSchema->toJSON(skipNulls:true);
+$responseBody = UserSchema::fromObject($user)->toJSON(skipNulls:true);
 ```
 
 Updating object:
@@ -249,14 +248,14 @@ class UserSchema extends \Schemantic\Schema
         return strlen($name) < 100; // && some checks....
     }
 
-    public static function getValidations(): array
+    public function getValidations(): array
     {
         rerturn [
-            'birthday' => ( (new \DateTime('now'))->diff($this->birthday)->y > 17 ),
+            'birthday' => ((new \DateTime('now'))->diff($this->birthday)->y > 17),
             'firstname' => self::validateName($this->firstname),
             'lastname' => self::validateName($this->lastname),
             'username' => self::validateName($this->username),
-            'email' => \App\Tools\Validator::validateEmail($email)
+            'email' => \App\Tools\Validator::validateEmail($email),
         ];
     }
 
@@ -265,7 +264,7 @@ class UserSchema extends \Schemantic\Schema
         public readonly string $firstname,
         public readonly string $lastname,
         public readonly string $username,
-        public readonly string $email
+        public readonly string $email,
     ) {
         $this->validate(true);
     }
