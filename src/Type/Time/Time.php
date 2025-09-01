@@ -26,7 +26,7 @@ class Time extends DateTime
     #[ReturnTypeWillChange]
     public static function __set_state($array): static
     {
-        parent::__set_state($array);
+        return parent::__set_state($array);
     }
 
     /**
@@ -45,7 +45,6 @@ class Time extends DateTime
     public static function createFromFormat($format, $datetime, $timezone = null): static|bool
     {
         return parent::createFromFormat($format, $datetime, $timezone);
-
     }
 
     /**

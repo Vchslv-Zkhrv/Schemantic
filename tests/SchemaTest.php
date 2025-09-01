@@ -396,18 +396,6 @@ class SchemaTest extends TestCase
         $this->assertEquals('testL', $updated->lastname);
     }
 
-    public function testCopy(): void
-    {
-        $original = new OrderSchema(1, new \DateTimeImmutable('now'), 2, 3);
-
-        $copy = $original->copy();
-
-        $this->assertTrue($original !== $copy);
-        $this->assertTrue($original  == $copy);
-        $this->assertTrue($original->createdAt == $copy->createdAt);
-        $this->assertTrue($original->createdAt !== $copy->createdAt);
-    }
-
     public function testValidate(): void
     {
         $correct = new Customer(18, 'ACTIVE', 1);

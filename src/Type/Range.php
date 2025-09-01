@@ -39,7 +39,7 @@ abstract class Range extends Schema
     public function getValidations(): array
     {
         return [
-            'start' => $this->start < $this->finish
+            'start' => $this->start <= $this->finish
         ];
     }
 
@@ -78,7 +78,7 @@ abstract class Range extends Schema
      */
     public function setStart(DateTimeImmutable $start): static
     {
-        return new static($start, $this->finish);
+        return new static($start, $this->finish); // @phpstan-ignore-line
     }
 
     /**
@@ -99,7 +99,7 @@ abstract class Range extends Schema
      */
     public function setFinish(DateTimeImmutable $finish): static
     {
-        return new static($this->start, $finish);
+        return new static($this->start, $finish); // @phpstan-ignore-line
     }
 
     /**

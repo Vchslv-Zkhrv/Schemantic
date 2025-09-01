@@ -26,7 +26,7 @@ class Date extends DateTime
     #[ReturnTypeWillChange]
     public static function __set_state($array): static
     {
-        parent::__set_state($array);
+        return parent::__set_state($array);
     }
 
     /**

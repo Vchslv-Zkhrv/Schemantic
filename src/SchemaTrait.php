@@ -143,7 +143,6 @@ trait SchemaTrait
         $params = self::_getMethodParams(static::class, '__construct');
 
         foreach ($params as $name => $type) {
-
             if ($type === null) {
                 continue;
             }
@@ -163,7 +162,6 @@ trait SchemaTrait
             }
 
             if (mb_substr($type, 0, 1) === '?') {
-
                 if (!array_key_exists($name, $raw)) {
                     continue;
                 } elseif ($raw[$name] == null) {
@@ -188,7 +186,6 @@ trait SchemaTrait
             }
 
             try {
-
                 if (mb_strpos($type, '[]') !== false) {
                     $type = str_replace('[]', '', $type);
 
@@ -214,13 +211,9 @@ trait SchemaTrait
                         timeFormat: $timeFormat
                     );
                 }
-
             } catch (\Throwable $e) {
-
                 throw new SchemaException("$type: {$e->getMessage()}");
-
             }
-
         }
 
         foreach ($raw as $key => $value) {
@@ -403,7 +396,6 @@ trait SchemaTrait
         $fields = array_merge($this->getFields($byAlias), $extra);
 
         if (in_array('__construct', get_class_methods($class))) {
-
             $constructParams = array_map(
                 function (\ReflectionParameter $p) use ($fields) {
                     $name = $p->name;
@@ -413,11 +405,8 @@ trait SchemaTrait
                 },
                 (new \ReflectionMethod($class, '__construct'))->getParameters()
             );
-
         } else {
-
             $constructParams = [ ];
-
         }
 
         // create with __construct params
@@ -430,36 +419,28 @@ trait SchemaTrait
         );
 
         foreach ($setters as $setter) {
-
             $name = lcfirst(mb_substr($setter, 3));
 
             if (array_key_exists($name, $fields)) {
-
                 if (is_array($fields[$name])) {
                     call_user_func([$object, $setter], ...$fields[$name]);
                 } else {
                     call_user_func([$object, $setter], $fields[$name]);
                 }
-
                 unset($fields[$name]);
                 continue;
-
             }
 
             $name = 'is' . ucfirst($name);
 
             if (array_key_exists($name, $fields)) {
-
                 if (is_array($fields[$name])) {
                     call_user_func([$object, $setter], ...$fields[$name]);
                 } else {
                     call_user_func([$object, $setter], $fields[$name]);
                 }
-
                 unset($fields[$name]);
-
             }
-
         }
 
         // if all fields provided
@@ -492,11 +473,9 @@ trait SchemaTrait
      * Updates object with own fields.
      * Uses both properties (including virtual) and setter methods
      *
-     * @param T                   $object  object to update
+     * @param object              $object  object to update
      * @param array<string,mixed> $extra   Additional fields (not aliased). Can override env params
      * @param bool                $byAlias use aliases to parse or not
-     *
-     * @template T
      *
      * @return void
      *
@@ -516,11 +495,9 @@ trait SchemaTrait
 
         // update with setters
         foreach ($setters as $setter) {
-
             $name = lcfirst(mb_substr($setter, 3));
 
             if (array_key_exists($name, $fields) || array_key_exists("is$name", $fields)) {
-
                 if (is_array($fields[$name])) {
                     call_user_func([$object, $setter], ...$fields[$name]);
                 } else {
@@ -534,7 +511,6 @@ trait SchemaTrait
             $name = 'is' . ucfirst($name);
 
             if (array_key_exists($name, $fields) || array_key_exists("is$name", $fields)) {
-
                 if (is_array($fields[$name])) {
                     call_user_func([$object, $setter], ...$fields[$name]);
                 } else {
@@ -542,9 +518,7 @@ trait SchemaTrait
                 }
 
                 unset($fields[$name]);
-
             }
-
         }
 
         // if all fields provided
@@ -599,7 +573,6 @@ trait SchemaTrait
         ?string $timeFormat = null
     ): static {
         if (array_is_list($raw)) {
-
             $params = static::getContructParams();
 
             if (count($raw) < count($params)) {
@@ -610,7 +583,6 @@ trait SchemaTrait
 
             $raw = array_combine($params, $raw);
             $byAlias = false;
-
         }
 
         if ($byAlias) {
@@ -624,7 +596,6 @@ trait SchemaTrait
         }
 
         try {
-
             $values = self::_parseRecursive(
                 raw: $raw,
                 byAlias: $byAlias,
@@ -634,16 +605,11 @@ trait SchemaTrait
                 dateFormat: $dateFormat ?? static::getDateFormat(),
                 timeFormat: $timeFormat ?? static::getTimeFormat()
             );
-            $schema = new static(...$values);
-
+            $schema = new static(...$values); // @phpstan-ignore-line
         } catch (SchemaException $se) {
-
             throw $se;
-
-        } catch (\ArgumentCountError $ce) {
-
-            throw new SchemaException('Field count mismatch: ' . $ce->getMessage());
-
+        } catch (\Throwable $e) {
+            throw new SchemaException("An error occurred: '{$e->getMessage()}'", $e->getCode(), $e);
         }
 
         if ($validate) {
@@ -1013,23 +979,13 @@ trait SchemaTrait
         bool $validate = true
     ): static {
         $fields = array_merge($this->getFields($byAlias), $updates);
-        $copy = new static(...array_values($fields));
+        $copy = new static(...array_values($fields)); // @phpstan-ignore-line
 
         if ($validate) {
             $copy->validate(true);
         }
 
         return $copy;
-    }
-
-    /**
-     * Creates deep copy
-     *
-     * @return static
-     */
-    public function copy(): static
-    {
-        return unserialize(serialize($this));
     }
 
     /**
@@ -1050,7 +1006,6 @@ trait SchemaTrait
         $validations = $this->getValidations();
 
         foreach ($this->getFields() as $name => $field) {
-
             if (array_key_exists($name, $validations)) {
                 if (!$validations[$name]) {
                     $failed[] = $name;
@@ -1123,7 +1078,6 @@ trait SchemaTrait
         $result = [];
 
         if ($validate == 'no') {
-
             foreach ($rows as $rowindex => $row) {
                 $result[$rowindex] = self::fromArray(
                     raw: $row,
@@ -1138,9 +1092,7 @@ trait SchemaTrait
                     unset($rows[$rowindex]);
                 }
             }
-
         } elseif ($validate == 'throw') {
-
             foreach ($rows as $rowindex => $row) {
                 $result[$rowindex] = self::fromArray(
                     raw: $row,
@@ -1155,9 +1107,7 @@ trait SchemaTrait
                     unset($rows[$rowindex]);
                 }
             }
-
         } elseif ($validate == 'exclude') {
-
             foreach ($rows as $rowindex => $row) {
                 $schema = self::fromArray(
                     raw: $row,
@@ -1175,9 +1125,7 @@ trait SchemaTrait
                     unset($rows[$rowindex]);
                 }
             }
-
         } elseif ($validate == 'include') {
-
             foreach ($rows as $rowindex => $row) {
                 $schema = self::fromArray(
                     raw: $row,
@@ -1195,7 +1143,6 @@ trait SchemaTrait
                     unset($rows[$rowindex]);
                 }
             }
-
         }
 
         return $result;
@@ -1414,7 +1361,6 @@ trait SchemaTrait
         }
 
         if ($as == \DateTimeInterface::class || is_subclass_of($as, \DateTimeInterface::class)) {
-
             foreach ([
                 DateImmutable::class => $dateFormat,
                 Date::class => $dateFormat,
@@ -1423,7 +1369,6 @@ trait SchemaTrait
                 \DateTimeImmutable::class => $dateTimeFormat,
                 \DateTime::class => $dateTimeFormat
             ] as $dtClass => $dtFormat) {
-
                 if ($as == $dtClass || is_subclass_of($as, $dtClass)) {
 
                     if (is_subclass_of($value, $dtClass)) {
@@ -1440,9 +1385,7 @@ trait SchemaTrait
                     }
 
                 }
-
             }
-
         }
 
         if (is_subclass_of($as, \BackedEnum::class)) {
@@ -1488,10 +1431,10 @@ trait SchemaTrait
             }
             return $value->format($dateTimeFormat);
         }
-        if ($value instanceof \BackedEnumCase || $value instanceof \BackedEnum) {
+        if ($value instanceof \BackedEnumCase || $value instanceof \BackedEnum) { // @phpstan-ignore-line
             return $value->value;
         }
-        if ($value instanceof \UnitEnumCase || $value instanceof \UnitEnum) {
+        if ($value instanceof \UnitEnumCase || $value instanceof \UnitEnum) { // @phpstan-ignore-line
             return $value->name;
         }
 

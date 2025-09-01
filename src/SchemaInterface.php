@@ -169,11 +169,9 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
      * Updates object with own fields.
      * Uses both properties (including virtual) and setter methods
      *
-     * @param T                   $object  object to update
+     * @param object              $object  object to update
      * @param array<string,mixed> $extra   Additional fields (not aliased). Can override env params
      * @param bool                $byAlias use aliases to parse or not
-     *
-     * @template T
      *
      * @return void
      *
@@ -360,13 +358,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $byAlias = false,
         bool $validate = true
     ): static;
-
-    /**
-     * Creates deep copy
-     *
-     * @return static
-     */
-    public function copy(): static;
 
     /**
      * Process validations (recursively in all subschemas)
