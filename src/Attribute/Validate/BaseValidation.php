@@ -4,7 +4,6 @@ namespace Schemantic\Attribute\Validate;
 
 use Schemantic\SchemaInterface;
 
-
 /**
  * Abstract base class for validation attributes
  *
