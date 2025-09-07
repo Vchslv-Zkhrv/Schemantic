@@ -73,7 +73,7 @@ class ValidationTest extends TestCase
         foreach ($invalidArray as $key => $invalidValue) {
             $schema = clone $validSchema;
             $schema->$key = $invalidValue;
-            $fails = $schema->validate(throw: false, stopOnFail: false, getFails: true);
+            $fails = $schema->validate(getFails: true);
             $this->assertCount(1, $fails);
             $this->assertArrayHasKey($key, $fails);
         }

@@ -303,7 +303,7 @@ trait SchemaTrait
             array_map(
                 function (string $n) {
                     $env = getenv($n);
-                    return $env==false ? null : $env;
+                    return $env == false ? null : $env;
                 },
                 $names
             )
@@ -626,9 +626,9 @@ trait SchemaTrait
      * @return string
      */
     public function toJSON(
-        bool $pretty=false,
-        bool $skipNulls=false,
-        bool $byAlias=true,
+        bool $pretty = false,
+        bool $skipNulls = false,
+        bool $byAlias = true,
     ): string {
         $dump = $this->toArray(
             skipNulls: $skipNulls,
@@ -783,7 +783,7 @@ trait SchemaTrait
      *
      * @return array<int,string>
      */
-    public static function getContructParams(bool $byAlias=false): array
+    public static function getContructParams(bool $byAlias = false): array
     {
         $names = array_map(
             fn (\ReflectionParameter $p) => $p->name,
@@ -804,7 +804,7 @@ trait SchemaTrait
      *
      * @return array<string,mixed>
      */
-    public function getFields(bool $byAlias=false): array
+    public function getFields(bool $byAlias = false): array
     {
         $keys = $params = self::getContructParams(false);
 
