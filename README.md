@@ -154,8 +154,7 @@ $json = $menuSchema->toJSON(pretty: true); // will return the same, but with lan
 
 Entity:
 ```php
-// src/Entity/User.php
-class User()
+class User
 {
     private ?int $id = null;
     private string $status;
