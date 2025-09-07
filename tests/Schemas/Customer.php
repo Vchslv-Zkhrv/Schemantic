@@ -1,30 +1,28 @@
 <?php
+// phpcs:ignoreFile
 
 namespace Schemantic\Tests\Schemas;
 
+use Schemantic\Attribute\Alias;
+use Schemantic\Attribute\Validate\GreaterThan;
+use Schemantic\Attribute\Validate\LowerThan;
+use Schemantic\Attribute\Validate\OneOf;
 use Schemantic\Schema;
 
 class Customer extends Schema
 {
-    /** @var 'ACTIVE'|'INACTIVE'|'BLOCKED' $status */
+    /**
+     * @var 'ACTIVE'|'INACTIVE'|'BLOCKED' $status
+     */
+    #[OneOf(['ACTIVE', 'INACTIVE', 'BLOCKED'])]
     public string $status;
+
+    #[GreaterThan(17)]
+    #[LowerThan(100)]
     public int $age;
+
+    #[Alias('user_id')]
     public int $userId;
-
-    public function getValidations(): array
-    {
-        return [
-            'status' => in_array($this->status, ['ACTIVE', 'INACTIVE', 'BLOCKED']),
-            'age'    => $this->age > 17 && $this->age < 100
-        ];
-    }
-
-    public static function getAliases(): array
-    {
-        return [
-            'userId' => 'user_id'
-        ];
-    }
 
     /**
      * @param 'ACTIVE'|'INACTIVE'|'BLOCKED' $status
@@ -33,8 +31,7 @@ class Customer extends Schema
         int $age,
         string $status,
         int $userId
-    )
-    {
+    ) {
         $this->age = $age;
         $this->status = $status;
         $this->userId = $userId;

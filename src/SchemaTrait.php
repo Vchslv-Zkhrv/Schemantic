@@ -2,13 +2,13 @@
 
 namespace Schemantic;
 
+use Schemantic\Attribute\Alias;
+use Schemantic\Attribute\ArrayOf;
+use Schemantic\Attribute\DateTimeFormat;
+use Schemantic\Attribute\Validate\BaseValidation;
 use Schemantic\Exception\SchemaException;
 use Schemantic\Exception\ParsingException;
 use Schemantic\Exception\ValidationException;
-use Schemantic\Type\Date\Date;
-use Schemantic\Type\Date\DateImmutable;
-use Schemantic\Type\Time\Time;
-use Schemantic\Type\Time\TimeImmutable;
 
 /**
  * Recursively parsing structure trait.
@@ -16,7 +16,7 @@ use Schemantic\Type\Time\TimeImmutable;
  * Supports built-in types, enums, datetime, nested structures and arrays of them all.
  * Can read arrays, jsons, objects, query params, env variables and more.
  *
- * Combine with SchemaInterface to use Schemantic with your DTOs
+ * Combine with SchemaInterface to use Schemantic with your old DTOs
  *
  * @category Library
  * @package  Schemantic
@@ -24,60 +24,44 @@ use Schemantic\Type\Time\TimeImmutable;
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
+#[DateTimeFormat('Y-m-d\TH:i:s')]
 trait SchemaTrait
 {
     /**
-     * Override to set fields aliases
-     *
-     * Example: `[ 'unaliased_field' => 'aliasedField' ]`
-     *
      * @return array<string,string> `{unaliased: alias}`
      */
-    public static function getAliases(): array
+    final protected static function getAliases(): array
     {
-        return [];
+        $aliases = [];
+        foreach ((new \ReflectionClass(static::class))->getProperties() as $property) {
+            foreach ($property->getAttributes() as $attribute) {
+                if ($attribute->getName() === Alias::class) {
+                    /**
+                     * @var Alias $attr
+                     */
+                    $attr = $attribute->newInstance();
+                    $aliases[$property->getName()] = $attr->alias;
+                }
+            }
+        }
+        return $aliases;
     }
 
     /**
-     * Override to set field validations
-     *
-     * Example: ` [ 'password' => (mb_strlen($this->password) > 7) ]`
-     *
-     * @return array<string,bool> `{field_name: validation}`
+     * @return array<string,BaseValidation[]> `{field_name: validations}`
      */
-    public function getValidations(): array
+    final protected function getValidations(): array
     {
-        return [];
-    }
-
-    /**
-     * Override to set default parse/dump format for Date\DateImmutable types
-     *
-     * @return string `Y-m-d` by default
-     */
-    public static function getDateFormat(): string
-    {
-        return 'Y-m-d';
-    }
-
-    /**
-     * Override to set default parse/dump format for Time\TimeImmutable types
-     *
-     * @return string `H:i:s` by default
-     */
-    public static function getTimeFormat(): string
-    {
-        return 'H:i:s';
-    }
-
-    /**
-     * Override to set default parse/dump format for DateTime\DateTimeImmutable types
-     *
-     * @return string `Y-m-d\TH:i:s` by default
-     */
-    public static function getDateTimeFormat(): string
-    {
-        return 'Y-m-d\TH:i:s';
+        $validations = [];
+        foreach ((new \ReflectionClass(static::class))->getProperties() as $property) {
+            foreach ($property->getAttributes() as $attribute) {
+                $attr = $attribute->newInstance();
+                if ($attr instanceof BaseValidation) {
+                    $validations[$property->getName()][] = $attr;
+                }
+            }
+        }
+        return $validations;
     }
 
     /**
@@ -87,8 +71,16 @@ trait SchemaTrait
      */
     public static function isPlain(): bool
     {
-        foreach (self::_getMethodParams(static::class, '__construct') as $name => $type) {
-            if ($type && self::_isSchema($type)) {
+        $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
+
+        foreach ($params as $param) {
+            $type = $param->getType();
+            foreach ($param->getAttributes() as $attr) {
+                if ($attr->newInstance() instanceof ArrayOf) {
+                    return false;
+                }
+            }
+            if ($type && self::_isSchema((string)$type)) {
                 return false;
             }
         }
@@ -117,15 +109,41 @@ trait SchemaTrait
     }
 
     /**
+     * @return object[]
+     */
+    private static function _getSchemaAttributes(): array
+    {
+        $attrs = [];
+        foreach ((new \ReflectionClass(static::class))->getAttributes() as $attr) {
+            $attrs[] = $attr->newInstance();
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string,object[]>
+     */
+    private static function _getPropertiesAttributes(): array
+    {
+        $params = [];
+        foreach ((new \ReflectionMethod(static::class, '__construct'))->getParameters() as $param) {
+            $params[$param->name] = [];
+            foreach ($param->getAttributes() as $attr) {
+                $params[$param->name][] = $attr->newInstance();
+            }
+        }
+
+        return $params;
+    }
+
+    /**
      * Recursively parse subarrays as subschemas
      *
-     * @param array<string,mixed> $raw            source array
-     * @param bool                $byAlias        apply aliases
-     * @param bool                $validate       process validation after parsing
-     * @param bool                $parse          parse strings as DateTimes and enums
-     * @param string              $dateTimeFormat DateTime\DateTimeImmutable parse format
-     * @param string              $dateFormat     Date\DateImmutable parse format
-     * @param string              $timeFormat     Time\TimeImmutable parse format
+     * @param array<string,mixed> $raw      source array
+     * @param bool                $byAlias  apply aliases
+     * @param bool                $validate process validation after parsing
+     * @param bool                $parse    parse strings as DateTimes and enums
      *
      * @return array<string, mixed>
      *
@@ -136,38 +154,51 @@ trait SchemaTrait
         bool $byAlias,
         bool $validate,
         bool $parse,
-        string $dateTimeFormat,
-        string $dateFormat,
-        string $timeFormat
     ): array {
-        $params = self::_getMethodParams(static::class, '__construct');
+        $schemaAttributes = self::_getSchemaAttributes();
 
-        foreach ($params as $name => $type) {
-            if ($type === null) {
+        $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
+        foreach ($params as $param) {
+            $name = $param->getName();
+            $type = $param->getType();
+            $strType = (string)$type;
+
+            $refAttrs = $param->getAttributes();
+            $attributes = [];
+            $arrayOf = false;
+            foreach ($refAttrs as $refAttr) {
+                $attr = $refAttr->newInstance();
+                $attributes[] = $attr;
+                if ($attr instanceof ArrayOf) {
+                    $strType = $attr->class;
+                    $arrayOf = true;
+                    break;
+                }
+            }
+
+            if (($type === null || $type->isBuiltin()) && !$arrayOf) {
                 continue;
             }
 
-            if (!self::_isSchema($type)) {
+            if (!$arrayOf && !self::_isSchema((string)$type)) {
                 if ($parse && isset($raw[$name])) {
                     $raw[$name] = self::_parse(
                         value: $raw[$name],
                         name: $name,
-                        as: $type,
-                        dateTimeFormat: $dateTimeFormat,
-                        dateFormat: $dateFormat,
-                        timeFormat: $timeFormat,
+                        type: $type,
+                        propertyAttributes: $attributes,
+                        schemaAttributes: $schemaAttributes,
                     );
                 }
                 continue;
             }
 
-            if (mb_substr($type, 0, 1) === '?') {
+            if ($type->allowsNull()) {
                 if (!array_key_exists($name, $raw)) {
+                    $raw[$name] = $param->getDefaultValue();
                     continue;
-                } elseif ($raw[$name] == null) {
+                } elseif ($raw[$name] === null) {
                     continue;
-                } else {
-                    $type = str_replace('?', '', $type);
                 }
             }
 
@@ -186,38 +217,31 @@ trait SchemaTrait
             }
 
             try {
-                if (mb_strpos($type, '[]') !== false) {
-                    $type = str_replace('[]', '', $type);
-
+                if ($arrayOf) {
                     foreach ($schemaValues as $key => $values) {
-                        $raw[$name][$key] = $type::fromArray(
+                        $raw[$name][$key] = $strType::fromArray(
                             raw: $values,
                             byAlias: $byAlias,
                             validate: $validate,
                             parse: $parse,
-                            dateTimeFormat: $dateTimeFormat,
-                            dateFormat: $dateFormat,
-                            timeFormat: $timeFormat
                         );
                     }
                 } else {
-                    $raw[$name] = $type::fromArray(
+                    $raw[$name] = $strType::fromArray(
                         raw: $schemaValues,
                         byAlias: $byAlias,
                         validate: $validate,
                         parse: $parse,
-                        dateTimeFormat: $dateTimeFormat,
-                        dateFormat: $dateFormat,
-                        timeFormat: $timeFormat
                     );
                 }
             } catch (\Throwable $e) {
-                throw new SchemaException("$type: {$e->getMessage()}");
+                throw new SchemaException("$type: {$e->getMessage()}", $e->getCode(), $e);
             }
         }
 
+        $names = array_column($params, 'name');
         foreach ($raw as $key => $value) {
-            if (!array_key_exists($key, $params)) {
+            if (!in_array($key, $names)) {
                 unset($raw[$key]);
             }
         }
@@ -228,13 +252,10 @@ trait SchemaTrait
     /**
      * Parses JSON into Schema
      *
-     * @param string              $json           JSON string
-     * @param array<string,mixed> $extra          additional fields. Can override JSON fields.
-     * @param bool                $byAlias        use aliases to parse or not
-     * @param bool                $validate       process validations after parsing or not
-     * @param ?string             $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string             $dateFormat     `getDateFormat()` by default
-     * @param ?string             $timeFormat     `getTimeFormat()` by default
+     * @param string              $json     JSON string
+     * @param array<string,mixed> $extra    additional fields. Can override JSON fields.
+     * @param bool                $byAlias  use aliases to parse or not
+     * @param bool                $validate process validations after parsing or not
      *
      * @return static
      *
@@ -247,9 +268,6 @@ trait SchemaTrait
         array $extra = [],
         bool $byAlias = true,
         bool $validate = true,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static {
         $raw = json_decode($json, true, flags:JSON_THROW_ON_ERROR);
         return static::fromArray(
@@ -257,21 +275,15 @@ trait SchemaTrait
             byAlias: $byAlias,
             validate: $validate,
             parse: true,
-            dateTimeFormat: $dateTimeFormat,
-            dateFormat: $dateFormat,
-            timeFormat: $timeFormat
         );
     }
 
     /**
      * Reads values from environment variables
      *
-     * @param bool                $byAlias        use aliases to parse or not
-     * @param array<string,mixed> $extra          unaliased. Can override env params.
-     * @param bool                $validate       process validations after parsing or not
-     * @param ?string             $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string             $dateFormat     `getDateFormat()` by default
-     * @param ?string             $timeFormat     `getTimeFormat()` by default
+     * @param bool                $byAlias  use aliases to parse or not
+     * @param array<string,mixed> $extra    unaliased. Can override env params.
+     * @param bool                $validate process validations after parsing or not
      *
      * @return static
      *
@@ -282,9 +294,6 @@ trait SchemaTrait
         bool $byAlias = true,
         array $extra = [],
         bool $validate = true,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static {
         $keys = self::getContructParams(false);
         $names = self::_applyAlias($keys);
@@ -305,9 +314,6 @@ trait SchemaTrait
             validate: $validate,
             byAlias: $byAlias,
             parse: true,
-            dateTimeFormat: $dateTimeFormat,
-            dateFormat: $dateFormat,
-            timeFormat: $timeFormat
         );
     }
 
@@ -550,13 +556,10 @@ trait SchemaTrait
     /**
      * Parses array as Schema
      *
-     * @param array<stirng|int,mixed> $raw            both associative and non-associative arrays allowed
-     * @param bool                    $byAlias        use aliases to parse or not
-     * @param bool                    $validate       process validations after parsing or not
-     * @param bool                    $parse          parse strings into DateTimeInterface/Enum or not
-     * @param ?string                 $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string                 $dateFormat     `getDateFormat()` by default
-     * @param ?string                 $timeFormat     `getTimeFormat()` by default
+     * @param array<stirng|int,mixed> $raw      both associative and non-associative arrays allowed
+     * @param bool                    $byAlias  use aliases to parse or not
+     * @param bool                    $validate process validations after parsing or not
+     * @param bool                    $parse    parse strings into DateTimeInterface/Enum or not
      *
      * @return static
      *
@@ -568,9 +571,6 @@ trait SchemaTrait
         bool $byAlias = false,
         bool $validate = true,
         bool $parse = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static {
         if (array_is_list($raw)) {
             $params = static::getContructParams();
@@ -601,9 +601,6 @@ trait SchemaTrait
                 byAlias: $byAlias,
                 validate: $validate,
                 parse: $parse,
-                dateTimeFormat: $dateTimeFormat ?? static::getDateTimeFormat(),
-                dateFormat: $dateFormat ?? static::getDateFormat(),
-                timeFormat: $timeFormat ?? static::getTimeFormat()
             );
             $schema = new static(...$values); // @phpstan-ignore-line
         } catch (SchemaException $se) {
@@ -622,30 +619,21 @@ trait SchemaTrait
     /**
      * Dumps schema into JSON
      *
-     * @param bool    $pretty         pretty print + unescaped slashes + unescaped unicode
-     * @param bool    $skipNulls      remove `null` fields from JSON
-     * @param bool    $byAlias        use aliases to parse or not
-     * @param ?string $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string $dateFormat     `getDateFormat()` by default
-     * @param ?string $timeFormat     `getTimeFormat()` by default
+     * @param bool $pretty    pretty print + unescaped slashes + unescaped unicode
+     * @param bool $skipNulls remove `null` fields from JSON
+     * @param bool $byAlias   use aliases to parse or not
      *
      * @return string
      */
     public function toJSON(
         bool $pretty=false,
         bool $skipNulls=false,
-        bool $byAlias=false,
-        ?string $dateTimeFormat = 'Y-m-d\TH:i:s',
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
+        bool $byAlias=true,
     ): string {
         $dump = $this->toArray(
             skipNulls: $skipNulls,
             byAlias: $byAlias,
             dump: true,
-            dateTimeFormat: $dateTimeFormat,
-            dateFormat: $dateFormat,
-            timeFormat: $timeFormat
         );
 
         if ($pretty) {
@@ -658,12 +646,9 @@ trait SchemaTrait
     /**
      * Build query string or form-data body
      *
-     * @param bool     $skipNulls      remove `null` fields from query string
-     * @param bool     $byAlias        apply field aliases
-     * @param string[] $omit           fields names to omit
-     * @param ?string  $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string  $dateFormat     `getDateFormat()` by default
-     * @param ?string  $timeFormat     `getTimeFormat()` by default
+     * @param bool     $skipNulls remove `null` fields from query string
+     * @param bool     $byAlias   apply field aliases
+     * @param string[] $omit      fields names to omit
      *
      * @return string
      */
@@ -671,9 +656,6 @@ trait SchemaTrait
         bool $skipNulls = true,
         bool $byAlias = true,
         array $omit = [],
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): string {
         return http_build_query(
             array_diff_key(
@@ -681,9 +663,6 @@ trait SchemaTrait
                     skipNulls: $skipNulls,
                     byAlias: $byAlias,
                     dump: true,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 ),
                 array_flip($omit)
             )
@@ -693,13 +672,10 @@ trait SchemaTrait
     /**
      * Parse query string or form-data body
      *
-     * @param string              $query          query string or form-data content
-     * @param bool                $byAlias        use aliases to parse or not
-     * @param bool                $validate       process validations after parsing or not
-     * @param array<string,mixed> $extra          additional fields. Can override query params
-     * @param ?string             $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string             $dateFormat     `getDateFormat()` by default
-     * @param ?string             $timeFormat     `getTimeFormat()` by default
+     * @param string              $query    query string or form-data content
+     * @param bool                $byAlias  use aliases to parse or not
+     * @param bool                $validate process validations after parsing or not
+     * @param array<string,mixed> $extra    additional fields. Can override query params
      *
      * @return static
      *
@@ -711,9 +687,6 @@ trait SchemaTrait
         bool $byAlias = true,
         bool $validate = true,
         array $extra = [],
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static {
         $array = [];
         mb_parse_str($query, $array);
@@ -722,22 +695,16 @@ trait SchemaTrait
             byAlias: $byAlias,
             validate: $validate,
             parse: true,
-            dateTimeFormat: $dateTimeFormat,
-            dateFormat: $dateFormat,
-            timeFormat: $timeFormat
         );
     }
 
     /**
-     * Recursively parse subschemas into subarrays
+     * Recursively dump subschemas into subarrays
      *
-     * @param array  $fields         fields as-is
-     * @param bool   $skipNulls      skip null values
-     * @param bool   $byAlias        apply aliases
-     * @param bool   $dump           convert \DateTimeInterface and Enums as strings
-     * @param string $dateTimeFormat DateTime\DateTimeImmutable parse format
-     * @param string $dateFormat     Date\DateImmutable parse format
-     * @param string $timeFormat     Time\TimeImmutable parse format
+     * @param array $fields    fields as-is
+     * @param bool  $skipNulls skip null values
+     * @param bool  $byAlias   apply aliases
+     * @param bool  $dump      convert \DateTimeInterface and Enums as strings
      *
      * @return array<string, mixed>
      */
@@ -746,22 +713,23 @@ trait SchemaTrait
         bool $skipNulls,
         bool $byAlias,
         bool $dump,
-        string $dateTimeFormat,
-        string $dateFormat,
-        string $timeFormat
     ): array {
         $array = [];
+        $schemaAttributes = self::_getSchemaAttributes();
+        $propertiesAttributes = self::_getPropertiesAttributes();
 
         foreach ($fields as $key => $value) {
+            if ($key instanceof \BackedEnum) {
+                $key = $key->value;
+            } elseif ($key instanceof \UnitEnum) {
+                $key = $key->name;
+            }
 
-            if ($value instanceof SchemaInterface || $value instanceof self) {
+            if ($value instanceof SchemaInterface) {
                 $array[$key] = $value->toArray(
                     skipNulls: $skipNulls,
                     byAlias: $byAlias,
                     dump: $dump,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 );
             } elseif (is_array($value)) {
                 $array[$key] = self::_dumpRecursive(
@@ -769,16 +737,18 @@ trait SchemaTrait
                     skipNulls: $skipNulls,
                     byAlias: $byAlias,
                     dump: $dump,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 );
-            } elseif ($dump) {
+            } elseif (
+                $dump
+                && (
+                    $value instanceof \DateTimeInterface
+                    || $value instanceof \UnitEnum
+                )
+            ) {
                 $array[$key] = self::_dump(
                     value: $value,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
+                    schemaAttributes: $schemaAttributes,
+                    propertyAttributes: $propertiesAttributes[$key]
                 );
             } else {
                 $array[$key] = $value;
@@ -854,12 +824,9 @@ trait SchemaTrait
     /**
      * Returns fields as array. Dumps subschemas into subarrays
      *
-     * @param bool    $skipNulls      remove `null` fields from array
-     * @param bool    $byAlias        apply field aliases
-     * @param bool    $dump           convert dates and enums to strings
-     * @param ?string $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string $dateFormat     `getDateFormat()` by default
-     * @param ?string $timeFormat     `getTimeFormat()` by default
+     * @param bool $skipNulls remove `null` fields from array
+     * @param bool $byAlias   apply field aliases
+     * @param bool $dump      convert dates and enums to strings
      *
      * @return array<string,mixed>
      */
@@ -867,18 +834,12 @@ trait SchemaTrait
         bool $skipNulls = false,
         bool $byAlias = false,
         bool $dump = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): array {
         $result = self::_dumpRecursive(
             fields: $this->getFields($byAlias),
             skipNulls: $skipNulls,
             byAlias: $byAlias,
             dump: $dump,
-            dateTimeFormat: $dateTimeFormat ?? static::getDateTimeFormat(),
-            dateFormat: $dateFormat ?? static::getDateFormat(),
-            timeFormat: $timeFormat ?? static::getTimeFormat()
         );
 
         if ($byAlias) {
@@ -993,57 +954,85 @@ trait SchemaTrait
      *
      * @param bool $throw      thow ValidationException instead of returning `false`
      * @param bool $stopOnFail stop on first failed check
+     * @param bool $getFails   return bool result or array or fails
      *
-     * @return bool
+     * @return ($getFails is true ? array<string,array> : bool)
      *
      * @throws ValidationException
      */
     public function validate(
         bool $throw = false,
-        bool $stopOnFail = false
-    ): bool {
+        bool $stopOnFail = false,
+        bool $getFails = false,
+    ): array|bool {
         $failed = [];
         $validations = $this->getValidations();
 
         foreach ($this->getFields() as $name => $field) {
+            $break = false;
+
             if (array_key_exists($name, $validations)) {
-                if (!$validations[$name]) {
-                    $failed[] = $name;
-                    if ($stopOnFail) {
-                        break;
+                foreach ($validations[$name] as $validation) {
+                    if (!$validation->check($field, $this)) {
+                        $failed[$name][]= $validation->getErrorMessage($field);
+                        if ($stopOnFail) {
+                            $break = true;
+                            break;
+                        }
                     }
-                    continue;
                 }
+            }
+            if ($break) {
+                break;
             }
 
             if ($field instanceof SchemaInterface) {
-                if (!$field->validate($throw, $stopOnFail)) {
-                    $failed[] = $name;
+                $fieldFails = $field->validate($throw, $stopOnFail, true);
+                if ($fieldFails) {
+                    foreach ($fieldFails as $fail) {
+                        $failed[$name][] = $fail;
+                    }
                     if ($stopOnFail) {
+                        $break = true;
                         break;
                     }
-                    continue;
                 }
+            }
+            if ($break) {
+                break;
             }
 
             if (is_array($field) && !empty($field) && end($field) instanceof SchemaInterface) {
                 foreach ($field as $key => $val) {
-                    if (!$val->validate($throw, $stopOnFail)) {
-                        $failed[] = $name . "[$key]";
+                    $valFails = $val->validate($throw, $stopOnFail, true);
+                    if ($valFails) {
+                        foreach ($valFails as $fail) {
+                            $failed[$name][$key][] = $fail;
+                        }
                         if ($stopOnFail) {
+                            $break = true;
                             break;
                         }
-                        continue;
                     }
                 }
+            }
+            if ($break) {
+                break;
             }
         }
 
         if ($failed && $throw) {
-            throw new ValidationException("Validation for field(s) `" . implode('`, `', $failed) . "` failed");
+            throw new ValidationException(
+                "Validation for field(s) `" . implode('`, `', array_keys($failed)) . "` failed:\n" .
+                json_encode($failed, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
+            );
         }
 
-        return !boolval($failed);
+        if ($getFails) {
+            return $failed;
+        } else {
+            return empty($failed);
+        }
     }
 
     /**
@@ -1051,14 +1040,11 @@ trait SchemaTrait
      * All sub-arrays must use identical datetime format and same aliases.
      * Produced array will preserve original keys
      *
-     * @param array[]                          $rows           array of arrays
-     * @param bool                             $byAlias        use aliases to parse or not
-     * @param bool                             $parse          parse strings into DateTimeInterface/Enum or not
-     * @param 'no'|'throw'|'exclude'|'include' $validate       what to do with rows that doesn't meet validation rules
-     * @param bool                             $reduce         erase source array while parsing
-     * @param ?string                          $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string                          $dateFormat     `getDateFormat()` by default
-     * @param ?string                          $timeFormat     `getTimeFormat()` by default
+     * @param array[]                          $rows     array of arrays
+     * @param bool                             $byAlias  use aliases to parse or not
+     * @param bool                             $parse    parse strings into DateTimeInterface/Enum or not
+     * @param 'no'|'throw'|'exclude'|'include' $validate what to do with rows that doesn't meet validation rules
+     * @param bool                             $reduce   erase source array while parsing
      *
      * @return static[]
      *
@@ -1071,9 +1057,6 @@ trait SchemaTrait
         bool $parse = true,
         string $validate = 'no',
         bool $reduce = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): array {
         $result = [];
 
@@ -1084,9 +1067,6 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: false,
                     parse: $parse,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 );
                 if ($reduce) {
                     unset($rows[$rowindex]);
@@ -1099,9 +1079,6 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: true,
                     parse: $parse,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 );
                 if ($reduce) {
                     unset($rows[$rowindex]);
@@ -1114,9 +1091,6 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: false,
                     parse: $parse,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 );
                 if ($schema->validate(false, true)) {
                     $result[$rowindex] = $schema;
@@ -1132,9 +1106,6 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: false,
                     parse: $parse,
-                    dateTimeFormat: $dateTimeFormat,
-                    dateFormat: $dateFormat,
-                    timeFormat: $timeFormat
                 );
                 if (!$schema->validate(false, true)) {
                     $result[$rowindex] = $schema;
@@ -1153,12 +1124,9 @@ trait SchemaTrait
      * All sub-arrays must use identical datetime format and same aliases.
      * Produced array will preserve original keys
      *
-     * @param string                           $rows           rows
-     * @param bool                             $byAlias        use aliases to parse or not
-     * @param 'no'|'throw'|'exclude'|'include' $validate       what to do with rows that doesn't meet validation rules
-     * @param ?string                          $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string                          $dateFormat     `getDateFormat()` by default
-     * @param ?string                          $timeFormat     `getTimeFormat()` by default
+     * @param string                           $rows     rows
+     * @param bool                             $byAlias  use aliases to parse or not
+     * @param 'no'|'throw'|'exclude'|'include' $validate what to do with rows that doesn't meet validation rules
      *
      * @return static[]
      *
@@ -1170,9 +1138,6 @@ trait SchemaTrait
         string $rows,
         bool $byAlias = true,
         string $validate = 'no',
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): array {
         $rows = json_decode($rows, true, 512, JSON_THROW_ON_ERROR);
         return static::fromArrayMultiple(
@@ -1181,65 +1146,7 @@ trait SchemaTrait
             parse: true,
             validate: $validate,
             reduce: true,
-            dateTimeFormat: $dateTimeFormat,
-            dateFormat: $dateFormat,
-            timeFormat: $timeFormat
         );
-    }
-
-    /**
-     * Returns method expected arguments as name => type array.
-     * If PHPdoc comment exists, takes type hints from it.
-     *
-     * @param class-string $className  class
-     * @param string       $methodName method
-     *
-     * @return array<string,string>
-     */
-    private static function _getMethodParams(string $className, string $methodName): array
-    {
-        $class = new \ReflectionClass($className);
-        $method = new \ReflectionMethod($className, $methodName);
-        $result = [];
-
-        $doc = $method->getDocComment();
-        $params = $method->getParameters();
-        foreach ($params as $param) {
-            $type = $param->getType();
-            $type = $type===null ? null : ($type->isBuiltin() ? null : $type->__toString());
-            $name = $param->getName();
-            $result[$param->getName()] = $type;
-        }
-
-        $lines = array_map(
-            fn (string $l) => trim($l),
-            explode('*', $doc)
-        );
-
-        $params = array_filter(
-            $lines,
-            fn (string $line) => mb_strpos($line, '@param') !== false
-        );
-
-        $params = array_map(
-            fn (string $p) => preg_replace('/\s+/', ' ', $p),
-            $params
-        );
-
-        foreach ($params as $param) {
-            $words = explode(' ', $param);
-            $type = $words[1];
-            if (self::_isSchema($type)) {
-                if (mb_strpos($type, '\\') === false) {
-                    $ns = $class->getNamespaceName();
-                    $type = $ns . '\\' . $type;
-                }
-                $name = str_replace('$', '', $words[2]);
-                $result[$name] = $type;
-            }
-        }
-
-        return $result;
     }
 
     /**
@@ -1258,20 +1165,50 @@ trait SchemaTrait
         }
 
         return (
-            in_array(Schema::class, class_parents($type)) ||
-            in_array(SchemaInterface::class, class_implements($type))
+            in_array(SchemaInterface::class, class_implements($type)) ||
+            in_array(Schema::class, class_parents($type))
         );
+    }
+
+    /**
+     * Returns the property attribute if it exists. If it does not, returns the class property
+     *
+     * @param class-string<T> $propertyClass      attribute class
+     * @param object[]        $propertyAttributes property attributes
+     * @param object[]        $schemaAttributes   schema attributes
+     *
+     * @template T
+     *
+     * @return ?T
+     */
+    private static function _getPropertyAttribute(
+        string $propertyClass,
+        array $propertyAttributes,
+        array $schemaAttributes,
+    ): object|null {
+        foreach ($propertyAttributes as $attr) {
+            if ($attr instanceof $propertyClass) {
+                return $attr;
+            }
+        }
+
+        foreach ($schemaAttributes as $attr) {
+            if ($attr instanceof $propertyClass) {
+                return $attr;
+            }
+        }
+
+        return null;
     }
 
     /**
      * Parse item from source array
      *
-     * @param mixed|object $value          value
-     * @param string       $name           array-key
-     * @param class-string $as             type as string
-     * @param string       $dateTimeFormat DateTime\DateTimeImmutable parse format
-     * @param string       $dateFormat     Date\DateImmutable parse format
-     * @param string       $timeFormat     Time\TimeImmutable parse format
+     * @param mixed|object    $value              value
+     * @param string          $name               array-key
+     * @param \ReflectionType $type               type as string
+     * @param object[]        $propertyAttributes property attributes
+     * @param object[]        $schemaAttributes   schema attributes
      *
      * @return mixed|object
      *
@@ -1280,42 +1217,41 @@ trait SchemaTrait
     private static function _parse(
         $value,
         string $name,
-        string $as,
-        string $dateTimeFormat,
-        string $dateFormat,
-        string $timeFormat
+        \ReflectionType $type,
+        array $propertyAttributes,
+        array $schemaAttributes,
     ): mixed {
-        if ($value instanceof $as) {
+        $strType = (string)$type;
+        if ($value instanceof $strType) {
             return $value;
         }
 
-        if (mb_strpos($as, '|') !== false) {
+        if (mb_strpos($strType, '|') !== false && !$type->allowsNull()) {
             throw new ParsingException("Cannot parse union type");
         }
 
-        if (mb_strpos($as, '<') !== false) {
+        if (mb_strpos($strType, '<') !== false) {
             throw new ParsingException("Cannot parse generics");
         }
 
-        if (mb_strpos($as, '?') !== false) {
+        if ($type->allowsNull()) {
             if (is_null($value)) {
                 return null;
             }
-            $as = str_replace('?', '', $as);
+            $strType = str_replace('?', '', $strType);
         }
 
-        if (mb_strpos($as, '[]') !== false) {
+        if ($strType === 'array' || mb_strpos($strType, '[]') !== false) {
             if (is_array($value)) {
-                $as = str_replace('[]', '', $as);
+                $strType = str_replace('[]', '', $strType);
                 $result = [];
                 foreach ($value as $k => $v) {
                     $result[$k] = self::_parseOne(
                         value: $v,
                         name: "$name\[$k\]",
-                        as: $as,
-                        dateTimeFormat: $dateTimeFormat,
-                        dateFormat: $dateFormat,
-                        timeFormat: $timeFormat
+                        type: $type,
+                        propertyAttributes: $propertyAttributes,
+                        schemaAttributes: $schemaAttributes,
                     );
                 }
                 return $result;
@@ -1327,22 +1263,20 @@ trait SchemaTrait
         return self::_parseOne(
             value: $value,
             name: $name,
-            as: $as,
-            dateTimeFormat: $dateTimeFormat,
-            dateFormat: $dateFormat,
-            timeFormat: $timeFormat
+            type: $type,
+            propertyAttributes: $propertyAttributes,
+            schemaAttributes: $schemaAttributes,
         );
     }
 
     /**
      * Parse item element
      *
-     * @param mixed|object $value          value
-     * @param string       $name           array-key
-     * @param class-string $as             type as string
-     * @param string       $dateTimeFormat DateTime\DateTimeImmutable parse format
-     * @param string       $dateFormat     Date\DateImmutable parse format
-     * @param string       $timeFormat     Time\TimeImmutable parse format
+     * @param mixed|object    $value              value
+     * @param string          $name               array-key
+     * @param \ReflectionType $type               type as string
+     * @param object[]        $propertyAttributes property attributes
+     * @param object[]        $schemaAttributes   schema attributes
      *
      * @return mixed|object
      *
@@ -1351,85 +1285,79 @@ trait SchemaTrait
     private static function _parseOne(
         $value,
         string $name,
-        string $as,
-        string $dateTimeFormat,
-        string $dateFormat,
-        string $timeFormat
+        \ReflectionType $type,
+        array $propertyAttributes,
+        array $schemaAttributes,
     ): mixed {
-        if ($value instanceof $as) {
+        $strType = (string)$type;
+        $strType = str_replace('?', '', $strType);
+
+        if ($value instanceof $strType) {
             return $value;
         }
 
-        if ($as == \DateTimeInterface::class || is_subclass_of($as, \DateTimeInterface::class)) {
-            foreach ([
-                DateImmutable::class => $dateFormat,
-                Date::class => $dateFormat,
-                TimeImmutable::class => $timeFormat,
-                Time::class => $timeFormat,
-                \DateTimeImmutable::class => $dateTimeFormat,
-                \DateTime::class => $dateTimeFormat
-            ] as $dtClass => $dtFormat) {
-                if ($as == $dtClass || is_subclass_of($as, $dtClass)) {
-
-                    if (is_subclass_of($value, $dtClass)) {
-                        return $value;
-                    } elseif (is_string($value)) {
-                        $result = $dtClass::createFromFormat($dtFormat, $value);
-                        if ($result) {
-                            return $result;
-                        } else {
-                            throw new ParsingException("Cannot parse $name as $as: bad datetime format");
-                        }
-                    } elseif (is_int($value)) {
-                        return (new $dtClass)->setTimestamp($value);
-                    }
-
+        if ($strType == \DateTimeInterface::class || is_subclass_of($strType, \DateTimeInterface::class)) {
+            /**
+             * @var class-string<\DateTimeInterface>
+             */
+            if (is_string($value)) {
+                $attribute = self::_getPropertyAttribute(
+                    DateTimeFormat::class,
+                    $propertyAttributes,
+                    $schemaAttributes
+                );
+                $dtFormat = $attribute?->format ?: 'Y-m-d\TH:i:s';
+                $result = $strType::createFromFormat($dtFormat, $value);
+                if ($result) {
+                    return $result;
+                } else {
+                    throw new ParsingException("Cannot parse $name as $strType: bad datetime format");
                 }
+            } elseif (is_int($value)) {
+                return (new $strType)->setTimestamp($value);
             }
         }
 
-        if (is_subclass_of($as, \BackedEnum::class)) {
+        if (is_subclass_of($strType, \BackedEnum::class)) {
             if (!$value instanceof \BackedEnum) {
-                return $as::tryFrom($value);
+                return $strType::tryFrom($value);
             }
         }
 
-        if (is_subclass_of($as, \UnitEnum::class)) {
+        if (is_subclass_of($strType, \UnitEnum::class)) {
             if (!$value instanceof \UnitEnum) {
-                return $as::cases()[$value];
+                return $strType::cases()[$value];
             }
         }
 
-        throw new ParsingException("cannot parse $name as $as");
+        throw new ParsingException("cannot parse $name as $type");
     }
 
     /**
      * Convert (if possible) value to string or int representation
      *
-     * @param mixed  $value          value
-     * @param string $dateTimeFormat DateTime\DateTimeImmutable format
-     * @param string $dateFormat     Date\DateImmutable format
-     * @param string $timeFormat     Time\TimeImmutable format
+     * @param mixed    $value              value
+     * @param object[] $propertyAttributes property attributes
+     * @param object[] $schemaAttributes   schema attributes
      *
      * @return mixed|string
      */
     private static function _dump(
         $value,
-        string $dateTimeFormat,
-        string $dateFormat,
-        string $timeFormat
+        array $propertyAttributes,
+        array $schemaAttributes,
     ): mixed {
-        if ($value instanceof Date || $value instanceof DateImmutable) {
-            return $value->format($dateFormat);
-        }
-        if ($value instanceof Time || $value instanceof TimeImmutable) {
-            return $value->format($timeFormat);
-        }
         if ($value instanceof \DateTimeInterface) {
-            if ($dateTimeFormat == 'unix') {
+            $attribute = self::_getPropertyAttribute(
+                DateTimeFormat::class,
+                $propertyAttributes,
+                $schemaAttributes
+            );
+            $format = $attribute?->format ?: 'Y-m-d\TH:i:s';
+            if ($format == 'unix') {
                 return $value->getTimestamp();
             }
-            return $value->format($dateTimeFormat);
+            return $value->format($format);
         }
         if ($value instanceof \BackedEnumCase || $value instanceof \BackedEnum) { // @phpstan-ignore-line
             return $value->value;

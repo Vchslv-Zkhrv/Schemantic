@@ -1,4 +1,5 @@
 <?php
+// phpcs:ignoreFile
 
 namespace Schemantic\Tests\Schemas;
 
@@ -11,9 +12,8 @@ class Tag extends Schema
 
     public function __construct(
         string $name,
-        ?string $icon = null
-    )
-    {
+        ?string $icon = null,
+    ) {
         $this->name = $name;
         $this->icon = $icon;
     }

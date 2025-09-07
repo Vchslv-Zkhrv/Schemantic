@@ -1,6 +1,6 @@
 # Schemantic
 
-Modest PHP analogue for [Pydantic](https://github.com/pydantic/pydantic). PHP8 only.
+Recursively parsing PHP structures. Pure PHP 8.1+, no dependencies
 
 ## Installation
 
@@ -13,75 +13,68 @@ composer require schemantic/schemantic
 - Recursive parse sub-structures (and arrays of sub-structures)
 - No depenencies (pure PHP)
 - Based on Traits, so you can easily inject Schemantic into your project
-- ORM integration (just like `model_validate` from Pydantic) with Doctrine support
+- ORM integration with Doctrine support
 - JSON parsing
-- DateTime and Enum dump & parsing
+- `DateTimeInerface` dump & parsing
+- Enum dump & parsing
 - Fields aliases
 - Fields validations
-- 3 separate datetime formats: for date, time and datetime
-- Unix datetime format support
 
 
 ## Supported types:
 
 1. built-in PHP types
-2. DateTime and DateTimeImmutable
+2. DateTimeInterface
 3. UnitEnumCase and BackedEnumCase
 4. Sub-schemas
-5. Arrays of types above (via `[]` sign)
-6. Nullable types (via `?` sign)
-
-
-## Warnings:
-
-1. **Avoid using interfaces**. Schema will know the real class to parse into
-2. **Union and generic types are not allowed** in most cases
-3. When using array of sub-schemas as property type (in `@param` tag), **specify the full path to the sub-schema class** (See [example](#recursive-parsing))
+5. Arrays of types above
+6. Nullable types
 
 
 ## Usage:
 
 ### Recursive parsing:
 
-Sub-sub-schema:
+Schemas:
 ```php
-// src/Schemas/Category.php
-class Category extends \Schemantic\Schema
+use Schemantic\Attribute\ArrayOf;
+use Schemantic\Attribute\Alias;
+use Schemantic\Attribute\DateTimeFormat;
+use Schemantic\Schema;
+use Schemantic\SchemaInterface;
+use Schemantic\SchemaTrait;
+
+class Category extends Schema
 {
     public function __construct(
+        #[Alias('categoryId')]
         public readonly string $id,
+
         public readonly string $icon
     ) {
     }
 }
-```
 
-Sub-schema:
-```php
-// src/Schemas/MenuChapter.php
-class MenuChapter extends \Schemantic\Schema
+
+class MenuChapter extends Schema
 {
-    /**
-     * It's neccessary to specify full path when using arrays of schemas
-     * You don't need to write all @param tags
-     * @param \App\Schemas\Category[] $categories
-     */
     public function __construct(
+        #[Alias('chapterId')]
         public readonly string $id,
+
         public readonly string $icon,
+
+        #[ArrayOf(Category::class)]
         public readonly array $categories
     ) {
     }
 }
-```
 
-Another one sub-schema:
-```php
-// src/Schemas/WorkingHours.php
-class WorkingHours implements \Schemantic\SchemaInterface
+#[DateTimeFormat('H:i')]
+class WorkingHours implements SchemaInterface
 {
     // You can use 'use SchemaTrait' + 'implements SchemaInterface' instead of 'extends Schema'
-    use \Schemantic\SchemaTrait;
+    use SchemaTrait;
 
     public function __construct(
         public \DateTimeImmutable $weekdayOpen,
@@ -91,16 +84,11 @@ class WorkingHours implements \Schemantic\SchemaInterface
     ) {
     }
 }
-```
 
-Main schema:
-```php
-class Menu extends \Schemantic\Schema
+class Menu extends Schema
 {
-    /**
-     * @param \App\Schema\MenuChapter[] $chapters
-     */
     public function __construct(
+        #[ArrayOf(MenuChapter::class)]
         public array $chapters,
         public readonly WorkingHours $workingHours,
         public string $language = 'en'
@@ -120,29 +108,29 @@ Source data:
     },
     "chapters": {
         "appetizers": {
-            "id": "appetizersid",
+            "chapterId": "appetizersid",
             "icon": "link/to/icon",
             "categories": {
                 "salads": {
-                    "id": "someid1",
+                    "categoryId": "someid1",
                     "icon" "link/to/icon"
                 },
                 "platters": {
-                    "id": "someid2",
+                    "categoryId": "someid2",
                     "icon": "link/to/icon"
                 }
             }
         },
         "main course": {
-            "id": "maincourseid",
+            "chapterId": "maincourseid",
             "icon": "link/to/icon",
             "categories": {
                 "pizzas": {
-                    "id": "someid3",
+                    "categoryId": "someid3",
                     "icon": "link/to/icon"
                 },
                 "noodles": {
-                    "id": "someid4",
+                    "categoryId": "someid4",
                     "icon": "link/to/icon"
                 }
             }
@@ -154,10 +142,10 @@ Source data:
 Combine:
 ```php
 // $json = ...
-$menuSchema = MenuSchema::fromJSON($json, dateFormat:'H:i');
+$menuSchema = MenuSchema::fromJSON($json);
 
 // and vice versa:
-$json = $menuSchema->toJSON(pretty:true, dateFormat:'H:i'); // will return the same, but with language='en'
+$json = $menuSchema->toJSON(pretty: true); // will return the same, but with language='en'
 ```
 
 ---
@@ -203,8 +191,9 @@ class User()
 
 Schema:
 ```php
-// src/Schemas/UserSchema.php
-class UserSchema extends \Schemantic\Schema
+use Schemantic\Schema;
+
+class UserSchema extends Schema
 {
     public function __construct(
         public readonly ?int $id,
@@ -219,7 +208,7 @@ Reading from object:
 ```php
 $user = new User(StatusEnum::ACTIVE);
 
-$responseBody = UserSchema::fromObject($user)->toJSON(skipNulls:true);
+$responseBody = UserSchema::fromObject($user)->toJSON(skipNulls: true);
 ```
 
 Updating object:
@@ -241,29 +230,29 @@ $user = $userSchema->buildObject(User::class);
 ### Validating:
 
 ```php
-class UserSchema extends \Schemantic\Schema
-{
-    private static function validateName(string $name): bool
-    {
-        return strlen($name) < 100; // && some checks....
-    }
+use Schemantic\Schema;
+use Schemantic\Attribute\Validate;
 
-    public function getValidations(): array
+class UserSchema extends Schema
+{
+    public function validateBirthday(\DateTimeImmutable $birthday): bool
     {
-        rerturn [
-            'birthday' => ((new \DateTime('now'))->diff($this->birthday)->y > 17),
-            'firstname' => self::validateName($this->firstname),
-            'lastname' => self::validateName($this->lastname),
-            'username' => self::validateName($this->username),
-            'email' => \App\Tools\Validator::validateEmail($email),
-        ];
+        return (new \DateTime('now'))->diff($birthday)->y > 17;
     }
 
     public function __construct(
+        #[Validate\Validate('validateBirthday')]
         public readonly \DateTimeImmutable $birthday,
+
+        #[Validate\Length(max: 100)]
         public readonly string $firstname,
+
+        #[Validate\Length(max: 100)]
         public readonly string $lastname,
+
+        #[Validate\Length(min: 6, max: 100)]
         public readonly string $username,
+
         public readonly string $email,
     ) {
         $this->validate(true);

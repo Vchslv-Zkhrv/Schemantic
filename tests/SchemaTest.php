@@ -310,8 +310,6 @@ class SchemaTest extends TestCase
             22,
             true
         );
-
-        // echo "\n\n" . $schema . "\n\n";
     }
 
     public function testUpdate(): void
@@ -480,6 +478,7 @@ class SchemaTest extends TestCase
         );
 
         $json = $filter->toJSON();
+
         $raw = json_decode($json, true);
 
         $this->assertEquals(
@@ -515,7 +514,6 @@ class SchemaTest extends TestCase
         $schema = FilterSchema::fromArray(
             raw: $array,
             parse: true,
-            dateTimeFormat: 'Y-m-d\TH:i:s'
         );
 
         $this->assertEquals([1,2,3], $schema->ids);
@@ -542,7 +540,6 @@ class SchemaTest extends TestCase
         $schema = FilterSchema::fromArray(
             raw: $array,
             parse: true,
-            dateTimeFormat: 'Y-m-d\TH:i:s'
         );
 
         $this->assertEquals([1,2,3], $schema->ids);
@@ -574,7 +571,6 @@ class SchemaTest extends TestCase
         $schema = FilterSchema::fromArray(
             raw: $array,
             parse: true,
-            dateTimeFormat: 'Y-m-d\TH:i:s'
         );
 
         $this->assertEquals([1,2,3], $schema->ids);
@@ -595,7 +591,6 @@ class SchemaTest extends TestCase
             rows: $raw,
             byAlias: true,
             reduce: true,
-            dateTimeFormat: 'Y-m-d\TH:i:s'
         );
 
         $this->assertCount(0, $raw);
@@ -623,7 +618,6 @@ class SchemaTest extends TestCase
             byAlias: true,
             validate: 'exclude',
             reduce: true,
-            dateTimeFormat: 'Y-m-d\TH:i:s'
         );
 
         $this->assertCount(0, $raw);

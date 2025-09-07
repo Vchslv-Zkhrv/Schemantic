@@ -22,45 +22,6 @@ use Schemantic\Exception\ParsingException;
 interface SchemaInterface extends \JsonSerializable, \Stringable
 {
     /**
-     * Override to set fields aliases
-     *
-     * Example: `[ 'unaliased_field' => 'aliasedField' ]`
-     *
-     * @return array<string,string> `{unaliased: alias}`
-     */
-    public static function getAliases(): array;
-
-    /**
-     * Override to set field validations
-     *
-     * Example: ` [ 'password' => (mb_strlen($this->password) > 7) ]`
-     *
-     * @return array<string,bool> `{field_name: validation}`
-     */
-    public function getValidations(): array;
-
-    /**
-     * Override to set default parse/dump format for Date\DateImmutable types
-     *
-     * @return string `Y-m-d` by default
-     */
-    public static function getDateFormat(): string;
-
-    /**
-     * Override to set default parse/dump format for Time\TimeImmutable types
-     *
-     * @return string `H:i:s` by default
-     */
-    public static function getTimeFormat(): string;
-
-    /**
-     * Override to set default parse/dump format for DateTime\DateTimeImmutable types
-     *
-     * @return string `Y-m-d\TH:i:s` by default
-     */
-    public static function getDateTimeFormat(): string;
-
-    /**
      * Check schema contains subschemas or not
      *
      * @return bool
@@ -77,13 +38,10 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
     /**
      * Parses JSON into Schema
      *
-     * @param string              $json           JSON string
-     * @param array<string,mixed> $extra          additional fields. Can override JSON fields.
-     * @param bool                $byAlias        use aliases to parse or not
-     * @param bool                $validate       process validations after parsing or not
-     * @param ?string             $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string             $dateFormat     `getDateFormat()` by default
-     * @param ?string             $timeFormat     `getTimeFormat()` by default
+     * @param string              $json     JSON string
+     * @param array<string,mixed> $extra    additional fields. Can override JSON fields.
+     * @param bool                $byAlias  use aliases to parse or not
+     * @param bool                $validate process validations after parsing or not
      *
      * @return static
      *
@@ -96,20 +54,14 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         array $extra = [],
         bool $byAlias = true,
         bool $validate = true,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static;
 
     /**
      * Reads values from environment variables
      *
-     * @param bool                $byAlias        use aliases to parse or not
-     * @param array<string,mixed> $extra          unaliased. Can override env params.
-     * @param bool                $validate       process validations after parsing or not
-     * @param ?string             $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string             $dateFormat     `getDateFormat()` by default
-     * @param ?string             $timeFormat     `getTimeFormat()` by default
+     * @param bool                $byAlias  use aliases to parse or not
+     * @param array<string,mixed> $extra    unaliased. Can override env params.
+     * @param bool                $validate process validations after parsing or not
      *
      * @return static
      *
@@ -120,9 +72,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $byAlias = true,
         array $extra = [],
         bool $validate = true,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static;
 
     /**
@@ -186,13 +135,10 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
     /**
      * Parses array as Schema
      *
-     * @param array<stirng|int,mixed> $raw            both associative and non-associative arrays allowed
-     * @param bool                    $byAlias        use aliases to parse or not
-     * @param bool                    $validate       process validations after parsing or not
-     * @param bool                    $parse          parse strings into DateTimeInterface/Enum or not
-     * @param ?string                 $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string                 $dateFormat     `getDateFormat()` by default
-     * @param ?string                 $timeFormat     `getTimeFormat()` by default
+     * @param array<stirng|int,mixed> $raw      both associative and non-associative arrays allowed
+     * @param bool                    $byAlias  use aliases to parse or not
+     * @param bool                    $validate process validations after parsing or not
+     * @param bool                    $parse    parse strings into DateTimeInterface/Enum or not
      *
      * @return static
      *
@@ -204,20 +150,14 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $byAlias = false,
         bool $validate = true,
         bool $parse = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static;
 
     /**
      * Dumps schema into JSON
      *
-     * @param bool    $pretty         pretty print + unescaped slashes + unescaped unicode
-     * @param bool    $skipNulls      remove `null` fields from JSON
-     * @param bool    $byAlias        use aliases to parse or not
-     * @param ?string $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string $dateFormat     `getDateFormat()` by default
-     * @param ?string $timeFormat     `getTimeFormat()` by default
+     * @param bool $pretty    pretty print + unescaped slashes + unescaped unicode
+     * @param bool $skipNulls remove `null` fields from JSON
+     * @param bool $byAlias   use aliases to parse or not
      *
      * @return string
      */
@@ -225,20 +165,14 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $pretty = false,
         bool $skipNulls = false,
         bool $byAlias = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): string;
 
     /**
      * Build query string or form-data body
      *
-     * @param bool     $skipNulls      remove `null` fields from query string
-     * @param bool     $byAlias        apply field aliases
-     * @param string[] $omit           fields names to omit
-     * @param ?string  $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string  $dateFormat     `getDateFormat()` by default
-     * @param ?string  $timeFormat     `getTimeFormat()` by default
+     * @param bool     $skipNulls remove `null` fields from query string
+     * @param bool     $byAlias   apply field aliases
+     * @param string[] $omit      fields names to omit
      *
      * @return string
      */
@@ -246,21 +180,15 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $skipNulls = true,
         bool $byAlias = true,
         array $omit = [],
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): string;
 
     /**
      * Parse query string or form-data body
      *
-     * @param string              $query          query string or form-data content
-     * @param bool                $byAlias        use aliases to parse or not
-     * @param bool                $validate       process validations after parsing or not
-     * @param array<string,mixed> $extra          additional fields. Can override query params
-     * @param ?string             $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string             $dateFormat     `getDateFormat()` by default
-     * @param ?string             $timeFormat     `getTimeFormat()` by default
+     * @param string              $query    query string or form-data content
+     * @param bool                $byAlias  use aliases to parse or not
+     * @param bool                $validate process validations after parsing or not
+     * @param array<string,mixed> $extra    additional fields. Can override query params
      *
      * @return static
      *
@@ -272,9 +200,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $byAlias = true,
         bool $validate = true,
         array $extra = [],
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): static;
 
     /**
@@ -298,12 +223,9 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
     /**
      * Returns fields as array. Dumps subschemas into subarrays
      *
-     * @param bool    $skipNulls      remove `null` fields from array
-     * @param bool    $byAlias        apply field aliases
-     * @param bool    $dump           convert dates and enums to strings
-     * @param ?string $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string $dateFormat     `getDateFormat()` by default
-     * @param ?string $timeFormat     `getTimeFormat()` by default
+     * @param bool $skipNulls remove `null` fields from array
+     * @param bool $byAlias   apply field aliases
+     * @param bool $dump      convert dates and enums to strings
      *
      * @return array<string,mixed>
      */
@@ -311,9 +233,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $skipNulls = false,
         bool $byAlias = false,
         bool $dump = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): array;
 
     /**
@@ -364,29 +283,28 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
      *
      * @param bool $throw      thow ValidationException instead of returning `false`
      * @param bool $stopOnFail stop on first failed check
+     * @param bool $getFails   return bool result or array or fails
      *
-     * @return bool
+     * @return ($getFails is true ? array<string,array> : bool)
      *
      * @throws ValidationException
      */
     public function validate(
         bool $throw = false,
-        bool $stopOnFail = false
-    ): bool;
+        bool $stopOnFail = false,
+        bool $getFails = false,
+    ): array|bool;
 
     /**
      * Parse an array of arrays as array of schemas.
      * All sub-arrays must use identical datetime format and same aliases.
      * Produced array will preserve original keys
      *
-     * @param array[]                          $rows           array of arrays
-     * @param bool                             $byAlias        use aliases to parse or not
-     * @param bool                             $parse          parse strings into DateTimeInterface/Enum or not
-     * @param 'no'|'throw'|'exclude'|'include' $validate       what to do with rows that doesn't meet validation rules
-     * @param bool                             $reduce         erase source array while parsing
-     * @param ?string                          $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string                          $dateFormat     `getDateFormat()` by default
-     * @param ?string                          $timeFormat     `getTimeFormat()` by default
+     * @param array[]                          $rows     array of arrays
+     * @param bool                             $byAlias  use aliases to parse or not
+     * @param bool                             $parse    parse strings into DateTimeInterface/Enum or not
+     * @param 'no'|'throw'|'exclude'|'include' $validate what to do with rows that doesn't meet validation rules
+     * @param bool                             $reduce   erase source array while parsing
      *
      * @return static[]
      *
@@ -399,9 +317,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $parse = true,
         string $validate = 'no',
         bool $reduce = false,
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): array;
 
     /**
@@ -409,12 +324,9 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
      * All sub-arrays must use identical datetime format and same aliases.
      * Produced array will preserve original keys
      *
-     * @param string                           $rows           rows
-     * @param bool                             $byAlias        use aliases to parse or not
-     * @param 'no'|'throw'|'exclude'|'include' $validate       what to do with rows that doesn't meet validation rules
-     * @param ?string                          $dateTimeFormat `getDateTimeFormat()` by default
-     * @param ?string                          $dateFormat     `getDateFormat()` by default
-     * @param ?string                          $timeFormat     `getTimeFormat()` by default
+     * @param string                           $rows     rows
+     * @param bool                             $byAlias  use aliases to parse or not
+     * @param 'no'|'throw'|'exclude'|'include' $validate what to do with rows that doesn't meet validation rules
      *
      * @return static[]
      *
@@ -426,8 +338,5 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         string $rows,
         bool $byAlias = true,
         string $validate = 'no',
-        ?string $dateTimeFormat = null,
-        ?string $dateFormat = null,
-        ?string $timeFormat = null
     ): array;
 }

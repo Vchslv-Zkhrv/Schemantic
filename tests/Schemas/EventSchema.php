@@ -1,17 +1,24 @@
 <?php
+// phpcs:ignoreFile
 
 namespace Schemantic\Tests\Schemas;
 
+use Schemantic\Attribute\DateTimeFormat;
 use Schemantic\Schema;
-use Schemantic\Type\Date\DateImmutable;
-use Schemantic\Type\Time\Time;
 
 class EventSchema extends Schema
 {
     public function __construct(
         public readonly string $label,
-        public readonly DateImmutable $date,
-        public readonly Time $start,
-        public readonly Time $end
-    ) { }
+        //
+        #[DateTimeFormat('Y-m-d')]
+        public readonly \DateTimeImmutable $date,
+        //
+        #[DateTimeFormat('H:i:s')]
+        public readonly \DateTimeImmutable $start,
+        //
+        #[DateTimeFormat('H:i:s')]
+        public readonly \DateTimeImmutable $end
+    ) {
+    }
 }

@@ -1,17 +1,15 @@
 <?php
+// phpcs:ignoreFile
 
 namespace Schemantic\Tests\Schemas;
 
+use Schemantic\Attribute\Alias;
+
 class AliasedProduct extends Product
 {
-    /**
-     * @return array<string, string>
-     */
-    public static function getAliases(): array
-    {
-       return [
-            'price' => 'total',
-            'description' => 'info'
-       ];
-    }
+    #[Alias('total')]
+    public float  $price;
+
+    #[Alias('info')]
+    public string $description = '';
 }
