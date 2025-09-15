@@ -122,15 +122,34 @@ trait SchemaTrait
     }
 
     /**
+     * @param bool $byAlias
+     *
      * @return array<string,object[]>
      */
-    private static function _getPropertiesAttributes(): array
+    private static function _getPropertiesAttributes(bool $byAlias = false): array
     {
         $params = [];
-        foreach ((new \ReflectionMethod(static::class, '__construct'))->getParameters() as $param) {
-            $params[$param->name] = [];
-            foreach ($param->getAttributes() as $attr) {
-                $params[$param->name][] = $attr->newInstance();
+        $reflectionParams = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
+
+        if ($byAlias) {
+            foreach ($reflectionParams as $param) {
+                $paramAttrs = [];
+                $paramName = $param->name;
+                foreach ($param->getAttributes() as $attr) {
+                    $instance = $attr->newInstance();
+                    $paramAttrs[] = $instance;
+                    if ($instance instanceof Alias) {
+                        $paramName = $instance->alias;
+                    }
+                }
+                $params[$paramName] = $paramAttrs;
+            }
+        } else {
+            foreach ($reflectionParams as $param) {
+                $params[$param->name] = [];
+                foreach ($param->getAttributes() as $attr) {
+                    $params[$param->name][] = $attr->newInstance();
+                }
             }
         }
 
@@ -717,6 +736,12 @@ trait SchemaTrait
         $array = [];
         $schemaAttributes = self::_getSchemaAttributes();
         $propertiesAttributes = self::_getPropertiesAttributes();
+        if ($byAlias) {
+            $propertiesAttributes = array_combine(
+                self::_applyAlias(array_keys($propertiesAttributes)),
+                $propertiesAttributes
+            );
+        }
 
         foreach ($fields as $key => $value) {
             if ($key instanceof \BackedEnum) {
