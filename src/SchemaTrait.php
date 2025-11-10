@@ -1263,8 +1263,9 @@ trait SchemaTrait
             if (is_null($value)) {
                 return null;
             }
-            $strType = str_replace('?', '', $strType);
         }
+
+        $strType = str_replace('?', '', $strType);
 
         if ($strType === 'array' || mb_strpos($strType, '[]') !== false) {
             if (is_array($value)) {
