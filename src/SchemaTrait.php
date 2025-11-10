@@ -181,6 +181,7 @@ trait SchemaTrait
             $name = $param->getName();
             $type = $param->getType();
             $strType = (string)$type;
+            $strType = str_replace('?', '', $strType);
 
             $refAttrs = $param->getAttributes();
             $attributes = [];
