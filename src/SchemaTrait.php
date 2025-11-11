@@ -1356,7 +1356,11 @@ trait SchemaTrait
                     $schemaAttributes
                 );
                 $dtFormat = $attribute?->format ?: 'Y-m-d\TH:i:s';
-                $result = $strType::createFromFormat($dtFormat, $value);
+                if ($strType == \DateTimeInterface::class) {
+                    $result = \DateTimeImmutable::createFromFormat($dtFormat, $value);
+                } else {
+                    $result = $strType::createFromFormat($dtFormat, $value);
+                }
                 if ($result) {
                     return $result;
                 } else {
