@@ -89,27 +89,6 @@ trait SchemaTrait
     }
 
     /**
-     * Check that all schema's fields types are builtins, \DateTimeInterface or \UnitEnum
-     *
-     * @return bool
-     */
-    public static function isBuiltin(): bool
-    {
-        $reflection = new \ReflectionMethod(static::class, '__construct');
-        foreach ($reflection->getParameters() as $param) {
-            $type = $param->getType();
-            $strType = $type->__toString();
-            if (!$type->isBuiltin()
-                && !$strType instanceof \DateTimeInterface
-                && !$strType instanceof \UnitEnum
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * @return object[]
      */
     private static function _getSchemaAttributes(): array
@@ -163,7 +142,7 @@ trait SchemaTrait
      * @param array<string,mixed> $raw      source array
      * @param bool                $byAlias  apply aliases
      * @param bool                $validate process validation after parsing
-     * @param bool                $parse    parse strings as DateTimes and enums
+     * @param bool                $parse    parse strings/ints as DateTimes/enums
      *
      * @return array<string, mixed>
      *
@@ -963,7 +942,7 @@ trait SchemaTrait
         return static::class . $this->toJSON(
             pretty: true,
             skipNulls: false,
-            byAlias: true
+            byAlias: false,
         );
     }
 
@@ -1193,7 +1172,7 @@ trait SchemaTrait
     }
 
     /**
-     * Check type is schemantic object
+     * Check type is a schemantic object
      *
      * @param \ReflectionType $type param type as string
      *

@@ -29,13 +29,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
     public static function isPlain(): bool;
 
     /**
-     * Check that all schema's fields types are builtins, \DateTimeInterface or \UnitEnum
-     *
-     * @return bool
-     */
-    public static function isBuiltin(): bool;
-
-    /**
      * Parses JSON into Schema
      *
      * @param string              $json     JSON string
