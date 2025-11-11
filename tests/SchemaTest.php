@@ -9,6 +9,7 @@ use Schemantic\Tests\Objects\User;
 use Schemantic\Tests\Objects\ShortUser;
 use Schemantic\Tests\Schemas\Product;
 use Schemantic\Tests\Schemas\AliasedProduct;
+use Schemantic\Tests\Schemas\SchemaWithUnionTypes;
 use Schemantic\Tests\Schemas\Tag;
 use Schemantic\Tests\Schemas\Env;
 use Schemantic\Tests\Schemas\Customer;
@@ -689,6 +690,107 @@ class SchemaTest extends TestCase
 
         $this->assertCount(2, $parsed);
     }
+
+    public function testParseUnionTypes(): void
+    {
+        $raw = [
+            'builtins1' => null,
+            'builtins2' => [],
+            'builtins3' => 0,
+            'builtinAndEnum1' => 'a',
+            'builtinAndEnum2' => 1.5,
+            'builtinAndDate1' => 4.3,
+            'builtinAndDate2' => '2025-01-01T00:00:00',
+            'builtinAndSchema1' => [
+                'name' => 'tag1'
+            ],
+            'builtinAndSchema2' => 'tag',
+            'arrayofAndSchema1' => [
+                'name' => 'tag2'
+            ],
+            'arrayofAndSchema2' => [
+                [
+                    'name' => 'tag3'
+                ],
+                [
+                    'name' => 'tag4'
+                ],
+            ],
+            'schemaAndEnum1' => [
+                'name' => 'tag5'
+            ],
+            'schemaAndEnum2' => 'ACTIVE',
+            'schemaAndSchema1' => [
+                'name' => 'tag6'
+            ],
+            'schemaAndSchema2' => [
+                'name' => 'product1',
+                'price' => 9.9,
+                'tags' => [
+                    [
+                        'name' => 'tag7'
+                    ],
+                    [
+                        'name' => 'tag8'
+                    ],
+                ]
+            ]
+        ];
+
+        $schema = SchemaWithUnionTypes::fromArray($raw, parse: true);
+
+        $this->assertNull($schema->builtins1);
+
+        $this->assertEquals([], $schema->builtins2);
+
+        $this->assertEquals(0, $schema->builtins1);
+
+        $this->assertEquals(StatusEnum::ACTIVE, $schema->builtinAndEnum1);
+
+        $this->assertEquals(1.5, $schema->builtinAndEnum2);
+
+        $this->assertEquals(4.3, $schema->builtinAndDate1);
+
+        $this->assertInstanceOf(\DateTimeImmutable::class, $schema->builtinAndDate2);
+        $this->assertEquals('2025-01-01', $schema->builtinAndDate2->format('Y-m-d'));
+
+        $this->assertInstanceOf(Tag::class, $schema->builtinAndSchema1);
+        $this->assertEquals('tag1', $schema->builtinAndSchema1->name);
+
+        $this->assertEquals('tag', $schema->builtinAndSchema2);
+
+        $this->assertInstanceOf(Tag::class, $schema->arrayofAndSchema1);
+        $this->assertEquals('tag2', $schema->arrayofAndSchema1->name);
+
+        $this->assertIsArray($schema->arrayofAndSchema2);
+        $this->assertCount(2, $schema->arrayofAndSchema2);
+        $this->assertInstanceOf(Tag::class, $schema->arrayofAndSchema2[0]);
+        $this->assertInstanceOf(Tag::class, $schema->arrayofAndSchema2[1]);
+        $this->assertEquals('tag3', $schema->arrayofAndSchema2[0]->name);
+        $this->assertEquals('tag4', $schema->arrayofAndSchema2[1]->name);
+
+        $this->assertInstanceOf(Tag::class, $schema->schemaAndEnum1);
+        $this->assertEquals('tag5', $schema->schemaAndEnum1->name);
+
+        $this->assertEquals(StatusEnum::ACTIVE, $schema->schemaAndEnum2);
+
+        $this->assertInstanceOf(Tag::class, $schema->schemaAndSchema1);
+        $this->assertEquals('tag6', $schema->schemaAndSchema1->name);
+
+        $this->assertInstanceOf(Product::class, $schema->schemaAndSchema2);
+        $this->assertEquals('product1', $schema->schemaAndSchema2->name);
+        $this->assertEquals(9.9, $schema->schemaAndSchema2->price);
+        $this->assertIsArray($schema->schemaAndSchema2->tags);
+        $this->assertCount(2, $schema->schemaAndSchema2->tags);
+        $this->assertInstanceOf(Tag::class, $schema->schemaAndSchema2->tags[0]);
+        $this->assertInstanceOf(Tag::class, $schema->schemaAndSchema2->tags[1]);
+        $this->assertEquals('tag7', $schema->schemaAndSchema2->tags[0]->name);
+        $this->assertEquals('tag8', $schema->schemaAndSchema2->tags[1]->name);
+    }
+
+    /* public function testDumpsUnionTypes(): void */
+    /* { */
+    /* } */
 
     public function tearDown(): void
     {

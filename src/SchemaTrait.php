@@ -6,6 +6,7 @@ use Schemantic\Attribute\Alias;
 use Schemantic\Attribute\ArrayOf;
 use Schemantic\Attribute\DateTimeFormat;
 use Schemantic\Attribute\Validate\BaseValidation;
+use Schemantic\Exception\DateParsingException;
 use Schemantic\Exception\SchemaException;
 use Schemantic\Exception\ParsingException;
 use Schemantic\Exception\ValidationException;
@@ -80,7 +81,7 @@ trait SchemaTrait
                     return false;
                 }
             }
-            if ($type && self::_isSchema((string)$type)) {
+            if ($type && self::_isSchema($type)) {
                 return false;
             }
         }
@@ -122,9 +123,9 @@ trait SchemaTrait
     }
 
     /**
-     * @param bool $byAlias
+     * @param bool $byAlias alias result array keys or not
      *
-     * @return array<string,object[]>
+     * @return array<string,object[]> field: attributes
      */
     private static function _getPropertiesAttributes(bool $byAlias = false): array
     {
@@ -179,83 +180,105 @@ trait SchemaTrait
         $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
         foreach ($params as $param) {
             $name = $param->getName();
-            $type = $param->getType();
-            $strType = (string)$type;
-            $strType = str_replace('?', '', $strType);
+            $asType = $param->getType();
 
-            $refAttrs = $param->getAttributes();
-            $attributes = [];
-            $arrayOf = false;
-            foreach ($refAttrs as $refAttr) {
-                $attr = $refAttr->newInstance();
-                $attributes[] = $attr;
-                if ($attr instanceof ArrayOf) {
-                    $strType = $attr->class;
-                    $arrayOf = true;
-                    break;
-                }
+            if ($asType instanceof \ReflectionUnionType) {
+                $types = $asType->getTypes();
+            } else {
+                $types = [$asType];
             }
 
-            if (($type === null || $type->isBuiltin()) && !$arrayOf) {
-                continue;
-            }
+            foreach ($types as $i => $type) {
+                try {
+                    $strType = (string)$type;
+                    $strType = str_replace('?', '', $strType);
 
-            if (!$arrayOf && !self::_isSchema((string)$type)) {
-                if ($parse && isset($raw[$name])) {
-                    $raw[$name] = self::_parse(
-                        value: $raw[$name],
-                        name: $name,
-                        type: $type,
-                        propertyAttributes: $attributes,
-                        schemaAttributes: $schemaAttributes,
-                    );
-                }
-                continue;
-            }
+                    $refAttrs = $param->getAttributes();
+                    $attributes = [];
 
-            if ($type->allowsNull()) {
-                if (!array_key_exists($name, $raw)) {
-                    $raw[$name] = $param->getDefaultValue();
-                    continue;
-                } elseif ($raw[$name] === null) {
-                    continue;
-                }
-            }
+                    $arrayOf = false;
+                    foreach ($refAttrs as $refAttr) {
+                        $attr = $refAttr->newInstance();
+                        $attributes[] = $attr;
+                        if ($strType === 'array' || mb_strpos($strType, '[]') !== false) {
+                            if ($attr instanceof ArrayOf) {
+                                $strType = $attr->class;
+                                $arrayOf = true;
+                                break;
+                            }
+                        }
+                    }
 
-            $schemaValues = $raw[$name];
-            if ($schemaValues instanceof SchemaInterface) {
-                $schemaValues = $schemaValues->toArray(
-                    skipNulls: false,
-                    byAlias: false,
-                    dump: false
-                );
-            }
+                    if (($type === null || $type->isBuiltin()) && !$arrayOf) {
+                        break;
+                    }
 
-            if (!is_array($schemaValues)) {
-                $cls = gettype($schemaValues);
-                throw new SchemaException("$type: Parameter $name must be an array or schema, $cls given");
-            }
+                    if (!$arrayOf && !self::_isSchema($type)) {
+                        if ($parse && isset($raw[$name])) {
+                            $raw[$name] = self::_parse(
+                                value: $raw[$name],
+                                name: $name,
+                                type: $type,
+                                propertyAttributes: $attributes,
+                                schemaAttributes: $schemaAttributes,
+                            );
+                        }
+                        break;
+                    }
 
-            try {
-                if ($arrayOf) {
-                    foreach ($schemaValues as $key => $values) {
-                        $raw[$name][$key] = $strType::fromArray(
-                            raw: $values,
-                            byAlias: $byAlias,
-                            validate: $validate,
-                            parse: $parse,
+                    if ($type->allowsNull()) {
+                        if (!array_key_exists($name, $raw)) {
+                            $raw[$name] = $param->getDefaultValue();
+                            break;
+                        } elseif ($raw[$name] === null) {
+                            break;
+                        }
+                    }
+
+                    $schemaValues = $raw[$name] ?? null;
+                    if ($schemaValues instanceof SchemaInterface) {
+                        $schemaValues = $schemaValues->toArray(
+                            skipNulls: false,
+                            byAlias: false,
+                            dump: false
                         );
                     }
-                } else {
-                    $raw[$name] = $strType::fromArray(
-                        raw: $schemaValues,
-                        byAlias: $byAlias,
-                        validate: $validate,
-                        parse: $parse,
-                    );
+
+                    if (!is_array($schemaValues)) {
+                        $cls = gettype($schemaValues);
+                        throw new SchemaException("$type: Parameter $name must be an array or schema, $cls given");
+                    }
+
+                    try {
+                        if ($arrayOf) {
+                            foreach ($schemaValues as $key => $values) {
+                                $raw[$name][$key] = $strType::fromArray(
+                                    raw: $values,
+                                    byAlias: $byAlias,
+                                    validate: $validate,
+                                    parse: $parse,
+                                );
+                            }
+                        } else {
+                            $raw[$name] = $strType::fromArray(
+                                raw: $schemaValues,
+                                byAlias: $byAlias,
+                                validate: $validate,
+                                parse: $parse,
+                            );
+                        }
+                        break;
+                    } catch (SchemaException $se) {
+                        throw $se;
+                    } catch (\Throwable $e) {
+                        // if an unexpected error occurred, raise SchemaException with previous=e
+                        throw new SchemaException("$type: {$e->getMessage()}", $e->getCode(), $e);
+                    }
+                } catch (\Throwable $e) {
+                    if ($i+1 == count($types)) {
+                        throw $e;
+                    }
                 }
-            } catch (\Throwable $e) {
-                throw new SchemaException("$type: {$e->getMessage()}", $e->getCode(), $e);
             }
         }
 
@@ -764,13 +787,7 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     dump: $dump,
                 );
-            } elseif (
-                $dump
-                && (
-                    $value instanceof \DateTimeInterface
-                    || $value instanceof \UnitEnum
-                )
-            ) {
+            } elseif ($dump && ($value instanceof \DateTimeInterface || $value instanceof \UnitEnum)) {
                 $array[$key] = self::_dump(
                     value: $value,
                     schemaAttributes: $schemaAttributes,
@@ -1178,13 +1195,26 @@ trait SchemaTrait
     /**
      * Check type is schemantic object
      *
-     * @param string|class-string $type param type as string
+     * @param \ReflectionType $type param type as string
      *
      * @return bool
      */
-    private static function _isSchema(string $type): bool
+    private static function _isSchema(\ReflectionType $type): bool
     {
-        $type = str_replace(['[]', '?'], '', $type);
+        if ($type instanceof \ReflectionUnionType) {
+            foreach ($type->getTypes() as $subtype) {
+                if (self::_isSchema($subtype)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if ($type->isBuiltin()) {
+            return false;
+        }
+
+        $type = str_replace(['[]', '?', '|null', 'null|'], '', (string)$type);
 
         if (!class_exists($type)) {
             return false;
@@ -1232,7 +1262,7 @@ trait SchemaTrait
      *
      * @param mixed|object    $value              value
      * @param string          $name               array-key
-     * @param \ReflectionType $type               type as string
+     * @param \ReflectionType $type               type
      * @param object[]        $propertyAttributes property attributes
      * @param object[]        $schemaAttributes   schema attributes
      *
@@ -1248,22 +1278,13 @@ trait SchemaTrait
         array $schemaAttributes,
     ): mixed {
         $strType = (string)$type;
+
         if ($value instanceof $strType) {
             return $value;
         }
 
-        if (mb_strpos($strType, '|') !== false && !$type->allowsNull()) {
-            throw new ParsingException("Cannot parse union type");
-        }
-
-        if (mb_strpos($strType, '<') !== false) {
-            throw new ParsingException("Cannot parse generics");
-        }
-
-        if ($type->allowsNull()) {
-            if (is_null($value)) {
-                return null;
-            }
+        if ($type->allowsNull() && is_null($value)) {
+            return null;
         }
 
         $strType = str_replace('?', '', $strType);
@@ -1275,7 +1296,7 @@ trait SchemaTrait
                 foreach ($value as $k => $v) {
                     $result[$k] = self::_parseOne(
                         value: $v,
-                        name: "$name\[$k\]",
+                        name: "$name.$k",
                         type: $type,
                         propertyAttributes: $propertyAttributes,
                         schemaAttributes: $schemaAttributes,
@@ -1308,6 +1329,7 @@ trait SchemaTrait
      * @return mixed|object
      *
      * @throws ParsingException
+     * @throws DateParsingException
      */
     private static function _parseOne(
         $value,
@@ -1338,22 +1360,33 @@ trait SchemaTrait
                 if ($result) {
                     return $result;
                 } else {
-                    throw new ParsingException("Cannot parse $name as $strType: bad datetime format");
+                    throw new DateParsingException("Cannot parse $name as $strType: bad datetime format");
                 }
             } elseif (is_int($value)) {
                 return (new $strType)->setTimestamp($value);
+            } else {
+                throw new ParsingException("cannot parse $name as date/time type $type");
             }
         }
 
-        if (is_subclass_of($strType, \BackedEnum::class)) {
-            if (!$value instanceof \BackedEnum) {
-                return $strType::tryFrom($value);
+        if (is_int($value) || is_string($value)) {
+            if (is_subclass_of($strType, \BackedEnum::class)) {
+                if (!$value instanceof \BackedEnum) {
+                    try {
+                        return $strType::from($value);
+                    } catch (\ValueError $ve) {
+                        if (defined("$strType::$value")) {
+                            return $strType::{$value};
+                        }
+                        throw $ve;
+                    }
+                }
             }
-        }
 
-        if (is_subclass_of($strType, \UnitEnum::class)) {
-            if (!$value instanceof \UnitEnum) {
-                return $strType::cases()[$value];
+            if (is_subclass_of($strType, \UnitEnum::class)) {
+                if (!$value instanceof \UnitEnum) {
+                    return $strType::cases()[$value];
+                }
             }
         }
 
