@@ -788,9 +788,69 @@ class SchemaTest extends TestCase
         $this->assertEquals('tag8', $schema->schemaAndSchema2->tags[1]->name);
     }
 
-    /* public function testDumpsUnionTypes(): void */
-    /* { */
-    /* } */
+    public function testDumpsUnionTypes(): void
+    {
+        $inputJson = <<<JSON
+        {
+            "builtins1": null,
+            "builtins2": [],
+            "builtins3": 0,
+            "builtinAndEnum1": "a",
+            "builtinAndEnum2": 1.5,
+            "builtinAndDate1": 4.3,
+            "builtinAndDate2": "2025-01-01T00:00:00",
+            "builtinAndSchema1": {
+                "name": "tag1",
+                "icon": null
+            },
+            "builtinAndSchema2": "tag",
+            "arrayofAndSchema1": {
+                "name": "tag2",
+                "icon": null
+            },
+            "arrayofAndSchema2": [
+                {
+                    "name": "tag3",
+                    "icon": null
+                },
+                {
+                    "name": "tag4",
+                    "icon": null
+                }
+            ],
+            "schemaAndEnum1": {
+                "name": "tag5",
+                "icon": null
+            },
+            "schemaAndEnum2": "a",
+            "schemaAndSchema1": {
+                "name": "tag6",
+                "icon": null
+            },
+            "schemaAndSchema2": {
+                "name": "product1",
+                "price": 9.9,
+                "tags": [
+                    {
+                        "name": "tag7",
+                        "icon": null
+                    },
+                    {
+                        "name": "tag8",
+                        "icon": null
+                    }
+                ],
+                "description": ""
+            }
+        }
+        JSON;
+
+        $schema = SchemaWithUnionTypes::fromJSON($inputJson);
+
+        $outputJson = $schema->toJSON(true);
+
+        $this->assertEquals($inputJson, $outputJson);
+    }
 
     public function tearDown(): void
     {
