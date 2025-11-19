@@ -1359,7 +1359,7 @@ trait SchemaTrait
                         return $strType::from($value);
                     } catch (\ValueError $ve) {
                         if (defined("$strType::$value")) {
-                            return constant($strType::class . '::' . $value);
+                            return constant($strType . '::' . $value);
                         }
                         throw $ve;
                     }
