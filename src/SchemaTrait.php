@@ -915,7 +915,7 @@ trait SchemaTrait
         bool $validate = true
     ): static {
         return static::fromArray(
-            raw: file_get_contents($file),
+            raw: include $file,
             byAlias: $byAlias,
             validate: $validate,
             parse: true
@@ -1359,7 +1359,7 @@ trait SchemaTrait
                         return $strType::from($value);
                     } catch (\ValueError $ve) {
                         if (defined("$strType::$value")) {
-                            return $strType::{$value};
+                            return constant($strType::class . '::' . $value);
                         }
                         throw $ve;
                     }
@@ -1402,10 +1402,10 @@ trait SchemaTrait
             }
             return $value->format($format);
         }
-        if ($value instanceof \BackedEnumCase || $value instanceof \BackedEnum) { // @phpstan-ignore-line
+        if ($value instanceof \BackedEnum) {
             return $value->value;
         }
-        if ($value instanceof \UnitEnumCase || $value instanceof \UnitEnum) { // @phpstan-ignore-line
+        if ($value instanceof \UnitEnum) {
             return $value->name;
         }
 
