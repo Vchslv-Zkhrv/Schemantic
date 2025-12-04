@@ -3,8 +3,6 @@
 namespace Schemantic\Attribute;
 
 use Attribute;
-use Schemantic\Attribute\Dump\BaseDumpInterface;
-use Schemantic\Attribute\Parse\BaseParseInterface;
 use Schemantic\SchemaInterface;
 
 /**
@@ -17,7 +15,7 @@ use Schemantic\SchemaInterface;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PARAMETER|Attribute::TARGET_PROPERTY)]
-class ArrayOf implements SingleAttributeInterface, BaseParseInterface, BaseDumpInterface
+class ArrayOf implements SingleAttributeInterface
 {
     /**
      * ArrayOf constructor

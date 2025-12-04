@@ -166,8 +166,19 @@ trait SchemaTrait
         $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
         foreach ($params as $param) {
             $name = $param->getName();
-            $asType = $param->getType();
 
+            if (array_key_exists($name, $raw)) {
+                $value = $raw[$name];
+            } elseif ($param->isOptional()) {
+                $value = $param->getDefaultValue();
+            } else {
+                throw new SchemaException("No value provided for required field `$name`");
+            }
+
+            $attributes = $propertiesAttributes[$name];
+            $arrayOfAttribute = $attributes->getOne(ArrayOf::class);
+
+            $asType = $param->getType();
             if ($asType instanceof \ReflectionUnionType) {
                 $types = $asType->getTypes();
             } else {
@@ -179,9 +190,6 @@ trait SchemaTrait
                     $strType = (string)$type;
                     $strType = str_replace('?', '', $strType);
 
-                    $attributes = $propertiesAttributes[$name];
-
-                    $arrayOfAttribute = $attributes->getOne(ArrayOf::class);
                     $arrayOf = false;
                     if ($arrayOfAttribute && $strType === 'array' || mb_strpos($strType, '[]') !== false) {
                         $arrayOf = true;
@@ -193,9 +201,9 @@ trait SchemaTrait
                     }
 
                     if (!$arrayOf && !self::_isSchema($type)) {
-                        if ($parse && isset($raw[$name])) {
+                        if ($parse && $value !== null) {
                             $raw[$name] = self::_parse(
-                                value: $raw[$name],
+                                value: $value,
                                 name: $name,
                                 type: $type,
                                 propertyAttributes: $attributes,
@@ -207,14 +215,14 @@ trait SchemaTrait
 
                     if ($type->allowsNull()) {
                         if (!array_key_exists($name, $raw)) {
-                            $raw[$name] = $param->getDefaultValue();
+                            $value = $param->getDefaultValue();
                             break;
-                        } elseif ($raw[$name] === null) {
+                        } elseif ($value === null) {
                             break;
                         }
                     }
 
-                    $schemaValues = $raw[$name] ?? null;
+                    $schemaValues = $value ?? null;
                     if ($schemaValues instanceof SchemaInterface) {
                         $schemaValues = $schemaValues->toArray(
                             skipNulls: false,
@@ -788,6 +796,14 @@ trait SchemaTrait
                 );
             } elseif ($value instanceof SchemaInterface) {
                 $array[$key] = $value->toArray(
+                    skipNulls: $skipNulls,
+                    byAlias: $byAlias,
+                    dump: $dump,
+                    group: $group,
+                );
+            } elseif (is_array($value)) {
+                $array[$key] = self::_dumpRecursive(
+                    fields: $value,
                     skipNulls: $skipNulls,
                     byAlias: $byAlias,
                     dump: $dump,
