@@ -3,6 +3,8 @@
 namespace Schemantic\Attribute;
 
 use Attribute;
+use Schemantic\Attribute\Dump\BaseDumpInterface;
+use Schemantic\Attribute\Parse\BaseParseInterface;
 
 /**
  * Use to set a date/time format
@@ -14,7 +16,7 @@ use Attribute;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PARAMETER|Attribute::TARGET_PROPERTY|Attribute::TARGET_CLASS)]
-class DateTimeFormat
+class DateTimeFormat implements SingleAttributeInterface, BaseDumpInterface, BaseParseInterface
 {
     /**
      * Format constructor.

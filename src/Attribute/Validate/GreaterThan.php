@@ -9,7 +9,7 @@ use Schemantic\SchemaInterface;
 /**
  * Use to check if property value is grater than (or equals) to
  *
- * @extends BaseValidation<int|float|string|DateTimeInterface>
+ * @extends ValidateAttribute<int|float|string|DateTimeInterface>
  *
  * @category Library
  * @package  Schemantic\Attribute\Validate
@@ -18,7 +18,7 @@ use Schemantic\SchemaInterface;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PROPERTY|Attribute::TARGET_PARAMETER|Attribute::IS_REPEATABLE)]
-class GreaterThan extends BaseValidation
+class GreaterThan extends ValidateAttribute
 {
     /**
      * GreaterThan constructor

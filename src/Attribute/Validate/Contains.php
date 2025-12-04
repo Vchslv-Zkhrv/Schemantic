@@ -8,7 +8,7 @@ use Schemantic\SchemaInterface;
 /**
  * Use to check an array property contains specific value
  *
- * @extends BaseValidation<array>
+ * @extends ValidateAttribute<array>
  *
  * @category Library
  * @package  Schemantic\Attribute\Validate
@@ -17,7 +17,7 @@ use Schemantic\SchemaInterface;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PROPERTY|Attribute::TARGET_PARAMETER|Attribute::IS_REPEATABLE)]
-class Contains extends BaseValidation
+class Contains extends ValidateAttribute
 {
     /**
      * Contains constructor

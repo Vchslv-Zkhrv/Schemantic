@@ -14,7 +14,7 @@ use Attribute;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PARAMETER|Attribute::TARGET_PROPERTY)]
-class Alias
+class Alias implements SingleAttributeInterface
 {
     /**
      * Alias constructor. Last applied attribute value will be used al alias

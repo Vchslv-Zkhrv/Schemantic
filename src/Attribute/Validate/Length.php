@@ -8,7 +8,7 @@ use Schemantic\SchemaInterface;
 /**
  * Use to check an array/string property length
  *
- * @extends BaseValidation<array|string>
+ * @extends ValidateAttribute<array|string>
  *
  * @category Library
  * @package  Schemantic\Attribute\Validate
@@ -17,7 +17,7 @@ use Schemantic\SchemaInterface;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PROPERTY|Attribute::TARGET_PARAMETER|Attribute::IS_REPEATABLE)]
-class Length extends BaseValidation
+class Length extends ValidateAttribute
 {
     /**
      * Length constructor

@@ -9,6 +9,9 @@ use Schemantic\Tests\Objects\User;
 use Schemantic\Tests\Objects\ShortUser;
 use Schemantic\Tests\Schemas\Product;
 use Schemantic\Tests\Schemas\AliasedProduct;
+use Schemantic\Tests\Schemas\SchemaWithCustomParseDump;
+use Schemantic\Tests\Schemas\SchemaWithGroups;
+use Schemantic\Tests\Schemas\SchemaWithJSONs;
 use Schemantic\Tests\Schemas\SchemaWithUnionTypes;
 use Schemantic\Tests\Schemas\Tag;
 use Schemantic\Tests\Schemas\Env;
@@ -166,12 +169,6 @@ class SchemaTest extends TestCase
     {
         $this->expectException(\JsonException::class);
         $product = Product::fromJSON('{"name":"name","price":"1.5","tags":{"first":{"name":"tag1","icon":"icon"},"second":{"name":"tag2"');
-    }
-
-    public function testIsPlain(): void
-    {
-        $this->assertFalse(Product::isPlain());
-        $this->assertTrue(Tag::isPlain());
     }
 
     public function testToJSONByAlias(): void
@@ -850,6 +847,110 @@ class SchemaTest extends TestCase
         $outputJson = $schema->toJSON(true);
 
         $this->assertEquals($inputJson, $outputJson);
+    }
+
+    public function testDefaultGroup(): void
+    {
+        $correctArray = [
+            'date' => '2025-01-01 00:00:00',
+            'status' => 'active',
+        ];
+
+        $schema = SchemaWithGroups::fromArray($correctArray, byAlias: true, parse: true, validate: true);
+        $this->assertEquals('2025-01-01 00:00:00', $schema->toArray(dump: true)['date']);
+        $this->assertEquals('active', $schema->status);
+
+        $incorrectArray = [
+            'dt' => '2025-01-01T00:00:00',
+            'status' => 'active',
+        ];
+
+        $this->expectException(SchemaException::class);
+        SchemaWithGroups::fromArray($incorrectArray, byAlias: true, parse: true, validate: true);
+    }
+
+    public function testCustomGroups(): void
+    {
+        $inputAttay = [
+            'dt' => '2025-01-01T00:00:00.000000',
+            'status' => 'active',
+        ];
+
+        $schema = SchemaWithGroups::fromArray($inputAttay, true, true, true, group: 'input');
+
+        $this->assertEquals('2025-01-01 00:00:00', $schema->toArray(dump: true)['date']);
+        $this->assertEquals('active', $schema->status);
+
+        $outputArray = $schema->toArray(dump: true, byAlias: true, group: 'output');
+
+        $this->assertEquals(1735689600, $outputArray['timestamp']);
+        $this->assertEquals('active', $outputArray['status']);
+    }
+
+    public function testDumpJSON(): void
+    {
+        $raw = [
+            'id' => 123456,
+            'value' => [
+                'foo' => 'bar'
+            ]
+        ];
+
+        $schema = SchemaWithJSONs::fromArray($raw);
+
+        $dump = $schema->toArray(dump: true, group: 'jsonValue');
+        $this->assertEquals(123456, $dump['id']);
+        $this->assertIsString($dump['value']);
+        $this->assertEquals('{"foo":"bar"}', $dump['value']);
+
+        $dump = $schema->toArray(dump: true);
+        $this->assertEquals(123456, $dump['id']);
+        $this->assertIsArray($dump['value']);
+        $this->assertEquals(['foo' => 'bar'], $dump['value']);
+
+        $json = $schema->toJSON(group: 'jsonValue');
+        $this->assertEquals('{"id":123456,"value":"{\"foo\":\"bar\"}"}', $json);
+    }
+
+    public function testParseJSON(): void
+    {
+        $normalJSON = '{"id":123456,"value":{"foo":"bar"}}';
+        $schema = SchemaWithJSONs::fromJSON($normalJSON);
+        $this->assertEquals(123456, $schema->id);
+        $this->assertIsArray($schema->value);
+        $this->assertEquals(['foo' => 'bar'], $schema->value);
+
+        $nestedJSON = '{"id":123456,"value":"{\"foo\":\"bar\"}"}';
+        $schema = SchemaWithJSONs::fromJSON($normalJSON, group: 'jsonValue');
+        $this->assertEquals(123456, $schema->id);
+        $this->assertIsArray($schema->value);
+        $this->assertEquals(['foo' => 'bar'], $schema->value);
+    }
+
+    public function testCustomDump(): void
+    {
+        $schema = new SchemaWithCustomParseDump(98765, ['foo', 'bar']);
+
+        $array = $schema->toArray(dump: true);
+        $this->assertEquals(98765, $array['id']);
+        $this->assertEquals('foo|bar', $array['tags']);
+
+        $array = $schema->toArray(dump: false);
+        $this->assertEquals(98765, $array['id']);
+        $this->assertEquals(['foo', 'bar'], $array['tags']);
+    }
+
+    public function testCustomParse(): void
+    {
+        $normalArray = [98765, ['foo', 'bar']];
+        $schema = SchemaWithCustomParseDump::fromArray($normalArray);
+        $this->assertEquals(98765, $schema->id);
+        $this->assertEquals(['foo', 'bar'], $schema->tags);
+
+        $formattedArray = [98765, 'foo|bar'];
+        $schema = SchemaWithCustomParseDump::fromArray($normalArray, parse: true);
+        $this->assertEquals(98765, $schema->id);
+        $this->assertEquals(['foo', 'bar'], $schema->tags);
     }
 
     public function tearDown(): void

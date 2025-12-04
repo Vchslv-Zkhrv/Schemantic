@@ -4,8 +4,13 @@ namespace Schemantic;
 
 use Schemantic\Attribute\Alias;
 use Schemantic\Attribute\ArrayOf;
+use Schemantic\Attribute\AttributeInterface;
 use Schemantic\Attribute\DateTimeFormat;
-use Schemantic\Attribute\Validate\BaseValidation;
+use Schemantic\Attribute\Dump\BaseDumpInterface;
+use Schemantic\Attribute\Dump\DumpInterface;
+use Schemantic\Attribute\Group;
+use Schemantic\Attribute\Parse\ParseInterface;
+use Schemantic\Attribute\Validate\ValidateAttribute;
 use Schemantic\Exception\DateParsingException;
 use Schemantic\Exception\SchemaException;
 use Schemantic\Exception\ParsingException;
@@ -29,111 +34,110 @@ use Schemantic\Exception\ValidationException;
 trait SchemaTrait
 {
     /**
-     * @return array<string,string> `{unaliased: alias}`
-     */
-    final protected static function getAliases(): array
-    {
-        $aliases = [];
-        foreach ((new \ReflectionClass(static::class))->getProperties() as $property) {
-            foreach ($property->getAttributes() as $attribute) {
-                if ($attribute->getName() === Alias::class) {
-                    /**
-                     * @var Alias $attr
-                     */
-                    $attr = $attribute->newInstance();
-                    $aliases[$property->getName()] = $attr->alias;
-                }
-            }
-        }
-        return $aliases;
-    }
-
-    /**
-     * @return array<string,BaseValidation[]> `{field_name: validations}`
-     */
-    final protected function getValidations(): array
-    {
-        $validations = [];
-        foreach ((new \ReflectionClass(static::class))->getProperties() as $property) {
-            foreach ($property->getAttributes() as $attribute) {
-                $attr = $attribute->newInstance();
-                if ($attr instanceof BaseValidation) {
-                    $validations[$property->getName()][] = $attr;
-                }
-            }
-        }
-        return $validations;
-    }
-
-    /**
-     * Check schema contains subschemas or not
+     * @param ?string $group group of attributes
      *
-     * @return bool
+     * @return Group
      */
-    public static function isPlain(): bool
+    private static function _getSchemaAttributes(?string $group = null): Group
     {
-        $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
+        $group = $group ?? Group::DEFAULT_GROUP_NAME;
+        $currentGroup = new Group($group);
+        $allGroups = [Group::DEFAULT_GROUP_NAME,];
 
-        foreach ($params as $param) {
-            $type = $param->getType();
-            foreach ($param->getAttributes() as $attr) {
-                if ($attr->newInstance() instanceof ArrayOf) {
-                    return false;
-                }
-            }
-            if ($type && self::_isSchema($type)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * @return object[]
-     */
-    private static function _getSchemaAttributes(): array
-    {
-        $attrs = [];
         foreach ((new \ReflectionClass(static::class))->getAttributes() as $attr) {
-            $attrs[] = $attr->newInstance();
+            if (!is_subclass_of($attr->name, AttributeInterface::class)) {
+                continue;
+            }
+
+            $attr = $attr->newInstance();
+
+            if ($attr instanceof Group) {
+                $allGroups[] = $attr->name;
+                if ($attr->name == $group) {
+                    $currentGroup = Group::merge($currentGroup, $attr);
+                }
+            } elseif ($group == Group::DEFAULT_GROUP_NAME) {
+                $currentGroup->addAttribute($attr);
+            }
         }
 
-        return $attrs;
+        if (!in_array($group, $allGroups)) {
+            return new Group($group);
+        }
+
+        return $currentGroup;
     }
 
     /**
-     * @param bool $byAlias alias result array keys or not
+     * @param bool    $byAlias alias result array keys or not
+     * @param ?string $group   group of attributes
      *
-     * @return array<string,object[]> field: attributes
+     * @return array<string,Group> field: attributes
      */
-    private static function _getPropertiesAttributes(bool $byAlias = false): array
-    {
+    private static function _getPropertiesAttributes(
+        bool $byAlias = false,
+        ?string $group = null,
+    ): array {
+        $group = $group ?? Group::DEFAULT_GROUP_NAME;
+        $allGroups = [Group::DEFAULT_GROUP_NAME,];
+
         $params = [];
         $reflectionParams = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
 
-        if ($byAlias) {
-            foreach ($reflectionParams as $param) {
-                $paramAttrs = [];
-                $paramName = $param->name;
-                foreach ($param->getAttributes() as $attr) {
-                    $instance = $attr->newInstance();
-                    $paramAttrs[] = $instance;
-                    if ($instance instanceof Alias) {
-                        $paramName = $instance->alias;
+        foreach ($reflectionParams as $param) {
+            $paramAttrs = [];
+            $paramName = $param->name;
+            $paramGroup = new Group($group);
+
+            foreach ($param->getAttributes() as $attr) {
+                if (!is_subclass_of($attr->name, AttributeInterface::class)) {
+                    continue;
+                }
+
+                $attr = $attr->newInstance();
+
+                if ($attr instanceof Group) {
+                    $allGroups[] = $attr->name;
+                    if ($attr->name == $group) {
+                        $paramGroup =  Group::merge($paramGroup, $attr);
+                        if ($byAlias && ($alias = $attr->getOne(Alias::class))) {
+                            $paramName = $alias->alias;
+                        }
                     }
-                }
-                $params[$paramName] = $paramAttrs;
-            }
-        } else {
-            foreach ($reflectionParams as $param) {
-                $params[$param->name] = [];
-                foreach ($param->getAttributes() as $attr) {
-                    $params[$param->name][] = $attr->newInstance();
+                } elseif ($group == Group::DEFAULT_GROUP_NAME) {
+                    if ($byAlias & $attr instanceof Alias) {
+                        $paramName = $attr->alias;
+                    }
+                    $paramGroup->addAttribute($attr);
                 }
             }
+
+            $params[$paramName] = $paramGroup;
+        }
+
+        if (!in_array($group, $allGroups)) {
+            throw new SchemaException("No such group: '$group'");
         }
 
         return $params;
+    }
+
+    /**
+     * @param ?string $group group of attributes
+     *
+     * @return array<string,string> `{unaliased: alias}`
+     */
+    private static function _getAliases(?string $group): array
+    {
+        $aliases = [];
+        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
+        foreach ($propertiesAttributes as $name => $attributes) {
+            if ($alias = $attributes->getOne(Alias::class)) {
+                $aliases[$name] = $alias->alias;
+            }
+        }
+
+        return $aliases;
     }
 
     /**
@@ -143,6 +147,7 @@ trait SchemaTrait
      * @param bool                $byAlias  apply aliases
      * @param bool                $validate process validation after parsing
      * @param bool                $parse    parse strings/ints as DateTimes/enums
+     * @param ?string             $group    group of attributes
      *
      * @return array<string, mixed>
      *
@@ -153,8 +158,10 @@ trait SchemaTrait
         bool $byAlias,
         bool $validate,
         bool $parse,
+        ?string $group,
     ): array {
-        $schemaAttributes = self::_getSchemaAttributes();
+        $schemaAttributes = self::_getSchemaAttributes(group: $group);
+        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
         $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
         foreach ($params as $param) {
@@ -172,20 +179,13 @@ trait SchemaTrait
                     $strType = (string)$type;
                     $strType = str_replace('?', '', $strType);
 
-                    $refAttrs = $param->getAttributes();
-                    $attributes = [];
+                    $attributes = $propertiesAttributes[$name];
 
+                    $arrayOfAttribute = $attributes->getOne(ArrayOf::class);
                     $arrayOf = false;
-                    foreach ($refAttrs as $refAttr) {
-                        $attr = $refAttr->newInstance();
-                        $attributes[] = $attr;
-                        if ($strType === 'array' || mb_strpos($strType, '[]') !== false) {
-                            if ($attr instanceof ArrayOf) {
-                                $strType = $attr->class;
-                                $arrayOf = true;
-                                break;
-                            }
-                        }
+                    if ($arrayOfAttribute && $strType === 'array' || mb_strpos($strType, '[]') !== false) {
+                        $arrayOf = true;
+                        $strType = $arrayOfAttribute->class;
                     }
 
                     if (($type === null || $type->isBuiltin()) && !$arrayOf) {
@@ -219,7 +219,8 @@ trait SchemaTrait
                         $schemaValues = $schemaValues->toArray(
                             skipNulls: false,
                             byAlias: false,
-                            dump: false
+                            dump: false,
+                            group: $group,
                         );
                     }
 
@@ -236,6 +237,7 @@ trait SchemaTrait
                                     byAlias: $byAlias,
                                     validate: $validate,
                                     parse: $parse,
+                                    group: $group,
                                 );
                             }
                         } else {
@@ -244,6 +246,7 @@ trait SchemaTrait
                                 byAlias: $byAlias,
                                 validate: $validate,
                                 parse: $parse,
+                                group: $group,
                             );
                         }
                         break;
@@ -278,6 +281,7 @@ trait SchemaTrait
      * @param array<string,mixed> $extra    additional fields. Can override JSON fields.
      * @param bool                $byAlias  use aliases to parse or not
      * @param bool                $validate process validations after parsing or not
+     * @param ?string             $group    group of attributes
      *
      * @return static
      *
@@ -290,6 +294,7 @@ trait SchemaTrait
         array $extra = [],
         bool $byAlias = true,
         bool $validate = true,
+        ?string $group = null
     ): static {
         $raw = json_decode($json, true, flags:JSON_THROW_ON_ERROR);
         return static::fromArray(
@@ -297,6 +302,7 @@ trait SchemaTrait
             byAlias: $byAlias,
             validate: $validate,
             parse: true,
+            group: $group,
         );
     }
 
@@ -306,6 +312,7 @@ trait SchemaTrait
      * @param bool                $byAlias  use aliases to parse or not
      * @param array<string,mixed> $extra    unaliased. Can override env params.
      * @param bool                $validate process validations after parsing or not
+     * @param ?string             $group    group of attributes
      *
      * @return static
      *
@@ -316,19 +323,19 @@ trait SchemaTrait
         bool $byAlias = true,
         array $extra = [],
         bool $validate = true,
+        ?string $group = null,
     ): static {
-        $keys = self::getContructParams(false);
-        $names = self::_applyAlias($keys);
+        $keys = self::getContructParams(byAlias: false, group: $group);
+        if ($byAlias) {
+            $keys = self::_applyAlias(names: $keys, group: $group);
+        }
 
-        $values = array_combine(
-            $keys,
-            array_map(
-                function (string $n) {
-                    $env = getenv($n);
-                    return $env == false ? null : $env;
-                },
-                $names
-            )
+        $values = array_map(
+            function (string $n) {
+                $env = getenv($n);
+                return $env == false ? null : $env;
+            },
+            $keys
         );
 
         return static::fromArray(
@@ -336,6 +343,7 @@ trait SchemaTrait
             validate: $validate,
             byAlias: $byAlias,
             parse: true,
+            group: $group,
         );
     }
 
@@ -346,6 +354,7 @@ trait SchemaTrait
      * @param array<string,mixed> $extra    Additional fields (not aliased). Can override object fields
      * @param bool                $byAlias  use aliases to parse or not
      * @param bool                $validate process validations after parsing or not
+     * @param ?string             $group    group of attributes
      *
      * @return static
      *
@@ -355,9 +364,10 @@ trait SchemaTrait
         object $object,
         array $extra = [],
         bool $byAlias = false,
-        bool $validate = true
+        bool $validate = true,
+        ?string $group = null,
     ): static {
-        $names = self::getContructParams($byAlias);
+        $names = self::getContructParams(byAlias: $byAlias, group: $group);
         $values = [];
 
         // fill from properties
@@ -397,7 +407,8 @@ trait SchemaTrait
             raw: $values,
             byAlias: $byAlias,
             validate: $validate,
-            parse: true
+            parse: true,
+            group: $group,
         );
     }
 
@@ -408,6 +419,7 @@ trait SchemaTrait
      * @param class-string<T>     $class   class to build from
      * @param array<string,mixed> $extra   Additional fields (not aliased). Can override env params.
      * @param bool                $byAlias use aliases to parse or not
+     * @param ?string             $group   group of attributes
      *
      * @template T
      *
@@ -419,9 +431,10 @@ trait SchemaTrait
     public function buildObject(
         string $class,
         array $extra = [],
-        bool $byAlias = false
+        bool $byAlias = false,
+        ?string $group = null,
     ): object {
-        $fields = array_merge($this->getFields($byAlias), $extra);
+        $fields = array_merge($this->getFields(byAlias: $byAlias, group: $group), $extra);
 
         if (in_array('__construct', get_class_methods($class))) {
             $constructParams = array_map(
@@ -504,6 +517,7 @@ trait SchemaTrait
      * @param object              $object  object to update
      * @param array<string,mixed> $extra   Additional fields (not aliased). Can override env params
      * @param bool                $byAlias use aliases to parse or not
+     * @param ?string             $group   group of attributes
      *
      * @return void
      *
@@ -512,9 +526,10 @@ trait SchemaTrait
     public function updateObject(
         object &$object,
         array $extra = [],
-        bool $byAlias = false
+        bool $byAlias = false,
+        ?string $group = null,
     ): void {
-        $fields = array_merge($this->getFields($byAlias), $extra);
+        $fields = array_merge($this->getFields(byAlias: $byAlias, group: $group), $extra);
 
         $setters = array_filter(
             get_class_methods($object),
@@ -582,6 +597,7 @@ trait SchemaTrait
      * @param bool                    $byAlias  use aliases to parse or not
      * @param bool                    $validate process validations after parsing or not
      * @param bool                    $parse    parse strings into DateTimeInterface/Enum or not
+     * @param ?string                 $group    group of attributes
      *
      * @return static
      *
@@ -593,9 +609,10 @@ trait SchemaTrait
         bool $byAlias = false,
         bool $validate = true,
         bool $parse = false,
+        ?string $group = null,
     ): static {
         if (array_is_list($raw)) {
-            $params = static::getContructParams();
+            $params = static::getContructParams(byAlias: false, group: $group);
 
             if (count($raw) < count($params)) {
                 $params = array_slice($params, 0, count($raw));
@@ -608,7 +625,7 @@ trait SchemaTrait
         }
 
         if ($byAlias) {
-            $aliases = array_flip(static::getAliases());
+            $aliases = array_flip(self::_getAliases(group: $group));
             foreach ($raw as $k => $v) {
                 if (array_key_exists($k, $aliases)) {
                     $raw[$aliases[$k]] = $raw[$k];
@@ -623,6 +640,7 @@ trait SchemaTrait
                 byAlias: $byAlias,
                 validate: $validate,
                 parse: $parse,
+                group: $group,
             );
             $schema = new static(...$values); // @phpstan-ignore-line
         } catch (SchemaException $se) {
@@ -632,7 +650,7 @@ trait SchemaTrait
         }
 
         if ($validate) {
-            $schema->validate(true, false);
+            $schema->validate(throw: true, stopOnFail: false, group: $group);
         }
 
         return $schema;
@@ -641,9 +659,10 @@ trait SchemaTrait
     /**
      * Dumps schema into JSON
      *
-     * @param bool $pretty    pretty print + unescaped slashes + unescaped unicode
-     * @param bool $skipNulls remove `null` fields from JSON
-     * @param bool $byAlias   use aliases to parse or not
+     * @param bool    $pretty    pretty print + unescaped slashes + unescaped unicode
+     * @param bool    $skipNulls remove `null` fields from JSON
+     * @param bool    $byAlias   use aliases to parse or not
+     * @param ?string $group     group of attributes
      *
      * @return string
      */
@@ -651,11 +670,13 @@ trait SchemaTrait
         bool $pretty = false,
         bool $skipNulls = false,
         bool $byAlias = true,
+        ?string $group = null,
     ): string {
         $dump = $this->toArray(
             skipNulls: $skipNulls,
             byAlias: $byAlias,
             dump: true,
+            group: $group,
         );
 
         if ($pretty) {
@@ -671,6 +692,7 @@ trait SchemaTrait
      * @param bool     $skipNulls remove `null` fields from query string
      * @param bool     $byAlias   apply field aliases
      * @param string[] $omit      fields names to omit
+     * @param ?string  $group     group of attributes
      *
      * @return string
      */
@@ -678,6 +700,7 @@ trait SchemaTrait
         bool $skipNulls = true,
         bool $byAlias = true,
         array $omit = [],
+        ?string $group = null,
     ): string {
         return http_build_query(
             array_diff_key(
@@ -685,6 +708,7 @@ trait SchemaTrait
                     skipNulls: $skipNulls,
                     byAlias: $byAlias,
                     dump: true,
+                    group: $group,
                 ),
                 array_flip($omit)
             )
@@ -698,6 +722,7 @@ trait SchemaTrait
      * @param bool                $byAlias  use aliases to parse or not
      * @param bool                $validate process validations after parsing or not
      * @param array<string,mixed> $extra    additional fields. Can override query params
+     * @param ?string             $group    group of attributes
      *
      * @return static
      *
@@ -709,6 +734,7 @@ trait SchemaTrait
         bool $byAlias = true,
         bool $validate = true,
         array $extra = [],
+        ?string $group = null,
     ): static {
         $array = [];
         mb_parse_str($query, $array);
@@ -717,16 +743,18 @@ trait SchemaTrait
             byAlias: $byAlias,
             validate: $validate,
             parse: true,
+            group: $group,
         );
     }
 
     /**
      * Recursively dump subschemas into subarrays
      *
-     * @param array $fields    fields as-is
-     * @param bool  $skipNulls skip null values
-     * @param bool  $byAlias   apply aliases
-     * @param bool  $dump      convert \DateTimeInterface and Enums as strings
+     * @param array   $fields    fields as-is
+     * @param bool    $skipNulls skip null values
+     * @param bool    $byAlias   apply aliases
+     * @param bool    $dump      convert \DateTimeInterface and Enums as strings
+     * @param ?string $group     group of attributes
      *
      * @return array<string, mixed>
      */
@@ -735,44 +763,40 @@ trait SchemaTrait
         bool $skipNulls,
         bool $byAlias,
         bool $dump,
+        ?string $group,
     ): array {
         $array = [];
-        $schemaAttributes = self::_getSchemaAttributes();
-        $propertiesAttributes = self::_getPropertiesAttributes();
-        if ($byAlias) {
-            $propertiesAttributes = array_combine(
-                self::_applyAlias(array_keys($propertiesAttributes)),
-                $propertiesAttributes
-            );
-        }
+        $schemaAttributes = self::_getSchemaAttributes(group: $group);
+        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
         foreach ($fields as $key => $value) {
-            if ($key instanceof \BackedEnum) {
-                $key = $key->value;
-            } elseif ($key instanceof \UnitEnum) {
-                $key = $key->name;
-            }
-
-            if ($value instanceof SchemaInterface) {
+            $propertyAttributes = $propertiesAttributes[$key] ?? null;
+            // phpcs:disable
+            if (
+                $dump
+                && (
+                    $value instanceof \DateTimeInterface
+                    || $value instanceof \UnitEnum
+                    || $propertyAttributes?->has(BaseDumpInterface::class)
+                )
+            ) {
+            // phpcs:enable
+                $array[$key] = self::_dump(
+                    value: $value,
+                    schemaAttributes: $schemaAttributes,
+                    propertyAttributes: $propertyAttributes,
+                );
+            } elseif ($value instanceof SchemaInterface) {
                 $array[$key] = $value->toArray(
                     skipNulls: $skipNulls,
                     byAlias: $byAlias,
                     dump: $dump,
-                );
-            } elseif (is_array($value)) {
-                $array[$key] = self::_dumpRecursive(
-                    fields: $value,
-                    skipNulls: $skipNulls,
-                    byAlias: $byAlias,
-                    dump: $dump,
-                );
-            } elseif ($dump && ($value instanceof \DateTimeInterface || $value instanceof \UnitEnum)) {
-                $array[$key] = self::_dump(
-                    value: $value,
-                    schemaAttributes: $schemaAttributes,
-                    propertyAttributes: $propertiesAttributes[$key]
+                    group: $group,
                 );
             } else {
+                if ($skipNulls && $value === null) {
+                    continue;
+                }
                 $array[$key] = $value;
             }
         }
@@ -784,12 +808,15 @@ trait SchemaTrait
      * Replace keys with aliases in array
      *
      * @param array<int,string> $names unaliased array
+     * @param ?string           $group group of attributes
      *
      * @return array<int,string>
      */
-    private static function _applyAlias(array $names): array
-    {
-        $aliases = static::getAliases();
+    private static function _applyAlias(
+        array $names,
+        ?string $group,
+    ): array {
+        $aliases = self::_getAliases(group: $group);
         foreach ($names as $id => $name) {
             if (array_key_exists($name, $aliases)) {
                 $names[$id] = $aliases[$name];
@@ -801,19 +828,22 @@ trait SchemaTrait
     /**
      * Get `__construct` params names
      *
-     * @param bool $byAlias apply field aliases
+     * @param bool    $byAlias apply field aliases
+     * @param ?string $group   group of attributes
      *
      * @return array<int,string>
      */
-    public static function getContructParams(bool $byAlias = false): array
-    {
+    public static function getContructParams(
+        bool $byAlias = false,
+        ?string $group = null,
+    ): array {
         $names = array_map(
             fn (\ReflectionParameter $p) => $p->name,
             (new \ReflectionMethod(static::class, '__construct'))->getParameters()
         );
 
         if ($byAlias) {
-            return self::_applyAlias($names);
+            return self::_applyAlias(names: $names, group: $group);
         } else {
             return $names;
         }
@@ -822,16 +852,19 @@ trait SchemaTrait
     /**
      * Returns fields as associative array as-is
      *
-     * @param bool $byAlias apply field aliases
+     * @param bool    $byAlias apply field aliases
+     * @param ?string $group   group of attributes
      *
      * @return array<string,mixed>
      */
-    public function getFields(bool $byAlias = false): array
-    {
-        $keys = $params = self::getContructParams(false);
+    public function getFields(
+        bool $byAlias = false,
+        ?string $group = null,
+    ): array {
+        $keys = $params = self::getContructParams(byAlias: false, group: $group);
 
         if ($byAlias) {
-            $keys = self::_applyAlias($keys);
+            $keys = self::_applyAlias(names: $keys, group: $group);
         }
 
         return array_combine(
@@ -846,9 +879,10 @@ trait SchemaTrait
     /**
      * Returns fields as array. Dumps subschemas into subarrays
      *
-     * @param bool $skipNulls remove `null` fields from array
-     * @param bool $byAlias   apply field aliases
-     * @param bool $dump      convert dates and enums to strings
+     * @param bool    $skipNulls remove `null` fields from array
+     * @param bool    $byAlias   apply field aliases
+     * @param bool    $dump      convert dates and enums to strings
+     * @param ?string $group     group of attributes
      *
      * @return array<string,mixed>
      */
@@ -856,16 +890,18 @@ trait SchemaTrait
         bool $skipNulls = false,
         bool $byAlias = false,
         bool $dump = false,
+        ?string $group = null,
     ): array {
         $result = self::_dumpRecursive(
             fields: $this->getFields($byAlias),
             skipNulls: $skipNulls,
             byAlias: $byAlias,
             dump: $dump,
+            group: $group,
         );
 
         if ($byAlias) {
-            foreach (static::getAliases() as $old => $new) {
+            foreach (self::_getAliases(group: $group) as $old => $new) {
                 if (array_key_exists($old, $result)) {
                     $result[$new] = $result[$old];
                     unset($result[$old]);
@@ -879,17 +915,21 @@ trait SchemaTrait
     /**
      * Writes php-valid cache
      *
-     * @param string $file file path
+     * @param string  $file  file path
+     * @param ?string $group group of attributes
      *
      * @return void
      */
-    public function writeCache(string $file): void
-    {
+    public function writeCache(
+        string $file,
+        ?string $group = null,
+    ): void {
         $export = var_export(
             $this->toArray(
                 skipNulls: false,
                 byAlias: false,
-                dump: false
+                dump: false,
+                group: $group,
             ),
             true
         );
@@ -900,9 +940,10 @@ trait SchemaTrait
     /**
      * Reads php cache (builded with writeCache or var_export)
      *
-     * @param string $file     file path
-     * @param bool   $byAlias  use aliases to parse or not
-     * @param bool   $validate process validations after parsing or not
+     * @param string  $file     file path
+     * @param bool    $byAlias  use aliases to parse or not
+     * @param bool    $validate process validations after parsing or not
+     * @param ?string $group    group of attributes
      *
      * @return static
      *
@@ -912,13 +953,15 @@ trait SchemaTrait
     public static function readCache(
         string $file,
         bool $byAlias = true,
-        bool $validate = true
+        bool $validate = true,
+        ?string $group = null,
     ): static {
         return static::fromArray(
-            raw: file_get_contents($file),
+            raw: include $file,
             byAlias: $byAlias,
             validate: $validate,
-            parse: true
+            parse: true,
+            group: $group,
         );
     }
 
@@ -953,19 +996,21 @@ trait SchemaTrait
      * @param array<string,mixed> $updates  array {name: new_value}
      * @param bool                $byAlias  use aliases to parse or not
      * @param bool                $validate process validations or not
+     * @param ?string             $group    group of attributes
      *
      * @return static
      */
     public function update(
         array $updates = [],
         bool $byAlias = false,
-        bool $validate = true
+        bool $validate = true,
+        ?string $group = null,
     ): static {
-        $fields = array_merge($this->getFields($byAlias), $updates);
+        $fields = array_merge($this->getFields(byAlias: $byAlias, group: $group), $updates);
         $copy = new static(...array_values($fields)); // @phpstan-ignore-line
 
         if ($validate) {
-            $copy->validate(true);
+            $copy->validate(throw: true, stopOnFail: false, group: $group);
         }
 
         return $copy;
@@ -974,9 +1019,10 @@ trait SchemaTrait
     /**
      * Process validations (recursively in all subschemas)
      *
-     * @param bool $throw      thow ValidationException instead of returning `false`
-     * @param bool $stopOnFail stop on first failed check
-     * @param bool $getFails   return bool result or array or fails
+     * @param bool    $throw      thow ValidationException instead of returning `false`
+     * @param bool    $stopOnFail stop on first failed check
+     * @param bool    $getFails   return bool result or array or fails
+     * @param ?string $group      group of attributes
      *
      * @return ($getFails is true ? array<string,array> : bool)
      *
@@ -986,21 +1032,21 @@ trait SchemaTrait
         bool $throw = false,
         bool $stopOnFail = false,
         bool $getFails = false,
+        ?string $group = null,
     ): array|bool {
         $failed = [];
-        $validations = $this->getValidations();
+        $propertiesAttributes = $this->_getPropertiesAttributes(false, group: $group);
 
         foreach ($this->getFields() as $name => $field) {
+            $fieldValidations = $propertiesAttributes[$name]->getMany(ValidateAttribute::class, false);
             $break = false;
 
-            if (array_key_exists($name, $validations)) {
-                foreach ($validations[$name] as $validation) {
-                    if (!$validation->check($field, $this)) {
-                        $failed[$name][]= $validation->getErrorMessage($field);
-                        if ($stopOnFail) {
-                            $break = true;
-                            break;
-                        }
+            foreach ($fieldValidations as $validation) {
+                if (!$validation->check($field, $this)) {
+                    $failed[$name][]= $validation->getErrorMessage($field);
+                    if ($stopOnFail) {
+                        $break = true;
+                        break;
                     }
                 }
             }
@@ -1009,7 +1055,7 @@ trait SchemaTrait
             }
 
             if ($field instanceof SchemaInterface) {
-                $fieldFails = $field->validate($throw, $stopOnFail, true);
+                $fieldFails = $field->validate(throw: $throw, stopOnFail: $stopOnFail, getFails: true, group: $group);
                 if ($fieldFails) {
                     foreach ($fieldFails as $fail) {
                         $failed[$name][] = $fail;
@@ -1026,7 +1072,7 @@ trait SchemaTrait
 
             if (is_array($field) && !empty($field) && end($field) instanceof SchemaInterface) {
                 foreach ($field as $key => $val) {
-                    $valFails = $val->validate($throw, $stopOnFail, true);
+                    $valFails = $val->validate(throw: $throw, stopOnFail: $stopOnFail, getFails: true, group: $group);
                     if ($valFails) {
                         foreach ($valFails as $fail) {
                             $failed[$name][$key][] = $fail;
@@ -1067,6 +1113,7 @@ trait SchemaTrait
      * @param bool                             $parse    parse strings into DateTimeInterface/Enum or not
      * @param 'no'|'throw'|'exclude'|'include' $validate what to do with rows that doesn't meet validation rules
      * @param bool                             $reduce   erase source array while parsing
+     * @param ?string                          $group    group of attributes
      *
      * @return static[]
      *
@@ -1079,6 +1126,7 @@ trait SchemaTrait
         bool $parse = true,
         string $validate = 'no',
         bool $reduce = false,
+        ?string $group = null,
     ): array {
         $result = [];
 
@@ -1089,6 +1137,7 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: false,
                     parse: $parse,
+                    group: $group,
                 );
                 if ($reduce) {
                     unset($rows[$rowindex]);
@@ -1101,6 +1150,7 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: true,
                     parse: $parse,
+                    group: $group,
                 );
                 if ($reduce) {
                     unset($rows[$rowindex]);
@@ -1113,8 +1163,9 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: false,
                     parse: $parse,
+                    group: $group,
                 );
-                if ($schema->validate(false, true)) {
+                if ($schema->validate(throw: false, stopOnFail: true, group: $group)) {
                     $result[$rowindex] = $schema;
                 }
                 if ($reduce) {
@@ -1128,8 +1179,9 @@ trait SchemaTrait
                     byAlias: $byAlias,
                     validate: false,
                     parse: $parse,
+                    group: $group,
                 );
-                if (!$schema->validate(false, true)) {
+                if (!$schema->validate(throw: false, stopOnFail: true, group: $group)) {
                     $result[$rowindex] = $schema;
                 }
                 if ($reduce) {
@@ -1149,6 +1201,7 @@ trait SchemaTrait
      * @param string                           $rows     rows
      * @param bool                             $byAlias  use aliases to parse or not
      * @param 'no'|'throw'|'exclude'|'include' $validate what to do with rows that doesn't meet validation rules
+     * @param ?string                          $group    group of attributes
      *
      * @return static[]
      *
@@ -1160,6 +1213,7 @@ trait SchemaTrait
         string $rows,
         bool $byAlias = true,
         string $validate = 'no',
+        ?string $group = null,
     ): array {
         $rows = json_decode($rows, true, 512, JSON_THROW_ON_ERROR);
         return static::fromArrayMultiple(
@@ -1168,6 +1222,7 @@ trait SchemaTrait
             parse: true,
             validate: $validate,
             reduce: true,
+            group: $group,
         );
     }
 
@@ -1206,44 +1261,13 @@ trait SchemaTrait
     }
 
     /**
-     * Returns the property attribute if it exists. If it does not, returns the class property
-     *
-     * @param class-string<T> $propertyClass      attribute class
-     * @param object[]        $propertyAttributes property attributes
-     * @param object[]        $schemaAttributes   schema attributes
-     *
-     * @template T
-     *
-     * @return ?T
-     */
-    private static function _getPropertyAttribute(
-        string $propertyClass,
-        array $propertyAttributes,
-        array $schemaAttributes,
-    ): object|null {
-        foreach ($propertyAttributes as $attr) {
-            if ($attr instanceof $propertyClass) {
-                return $attr;
-            }
-        }
-
-        foreach ($schemaAttributes as $attr) {
-            if ($attr instanceof $propertyClass) {
-                return $attr;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Parse item from source array
      *
      * @param mixed|object    $value              value
      * @param string          $name               array-key
      * @param \ReflectionType $type               type
-     * @param object[]        $propertyAttributes property attributes
-     * @param object[]        $schemaAttributes   schema attributes
+     * @param Group           $propertyAttributes property attributes
+     * @param Group           $schemaAttributes   schema attributes
      *
      * @return mixed|object
      *
@@ -1253,9 +1277,14 @@ trait SchemaTrait
         $value,
         string $name,
         \ReflectionType $type,
-        array $propertyAttributes,
-        array $schemaAttributes,
+        Group $propertyAttributes,
+        Group $schemaAttributes,
     ): mixed {
+        $parser = $propertyAttributes->getOne(ParseInterface::class);
+        if ($parser) {
+            return $parser->parse($value, static::class);
+        }
+
         $strType = (string)$type;
 
         if ($value instanceof $strType) {
@@ -1302,8 +1331,8 @@ trait SchemaTrait
      * @param mixed|object    $value              value
      * @param string          $name               array-key
      * @param \ReflectionType $type               type as string
-     * @param object[]        $propertyAttributes property attributes
-     * @param object[]        $schemaAttributes   schema attributes
+     * @param Group           $propertyAttributes property attributes
+     * @param Group           $schemaAttributes   schema attributes
      *
      * @return mixed|object
      *
@@ -1314,8 +1343,8 @@ trait SchemaTrait
         $value,
         string $name,
         \ReflectionType $type,
-        array $propertyAttributes,
-        array $schemaAttributes,
+        Group $propertyAttributes,
+        Group $schemaAttributes,
     ): mixed {
         $strType = (string)$type;
         $strType = str_replace('?', '', $strType);
@@ -1329,12 +1358,9 @@ trait SchemaTrait
              * @var class-string<\DateTimeInterface>
              */
             if (is_string($value)) {
-                $attribute = self::_getPropertyAttribute(
-                    DateTimeFormat::class,
-                    $propertyAttributes,
-                    $schemaAttributes
-                );
-                $dtFormat = $attribute?->format ?: 'Y-m-d\TH:i:s';
+                $dtFormat = $propertyAttributes->getOne(DateTimeFormat::class)?->format
+                    ?? $schemaAttributes->getOne(DateTimeFormat::class)?->format
+                    ?? 'Y-m-d\TH:i:s';
                 if ($strType == \DateTimeInterface::class) {
                     $result = \DateTimeImmutable::createFromFormat($dtFormat, $value);
                 } else {
@@ -1359,7 +1385,7 @@ trait SchemaTrait
                         return $strType::from($value);
                     } catch (\ValueError $ve) {
                         if (defined("$strType::$value")) {
-                            return $strType::{$value};
+                            return constant("$strType::$value");
                         }
                         throw $ve;
                     }
@@ -1379,33 +1405,35 @@ trait SchemaTrait
     /**
      * Convert (if possible) value to string or int representation
      *
-     * @param mixed    $value              value
-     * @param object[] $propertyAttributes property attributes
-     * @param object[] $schemaAttributes   schema attributes
+     * @param mixed $value              value
+     * @param Group $propertyAttributes property attributes
+     * @param Group $schemaAttributes   schema attributes
      *
      * @return mixed|string
      */
     private static function _dump(
         $value,
-        array $propertyAttributes,
-        array $schemaAttributes,
+        Group $propertyAttributes,
+        Group $schemaAttributes,
     ): mixed {
+        $dumper = $propertyAttributes->getOne(DumpInterface::class, strict: false);
+        if ($dumper) {
+            return $dumper->dump($value, static::class);
+        }
+
         if ($value instanceof \DateTimeInterface) {
-            $attribute = self::_getPropertyAttribute(
-                DateTimeFormat::class,
-                $propertyAttributes,
-                $schemaAttributes
-            );
-            $format = $attribute?->format ?: 'Y-m-d\TH:i:s';
+            $format = $propertyAttributes->getOne(DateTimeFormat::class)?->format
+                ?? $schemaAttributes->getOne(DateTimeFormat::class)?->format
+                ?? 'Y-m-d\TH:i:s';
             if ($format == 'unix') {
                 return $value->getTimestamp();
             }
             return $value->format($format);
         }
-        if ($value instanceof \BackedEnumCase || $value instanceof \BackedEnum) { // @phpstan-ignore-line
+        if ($value instanceof \BackedEnum) { // @phpstan-ignore-line
             return $value->value;
         }
-        if ($value instanceof \UnitEnumCase || $value instanceof \UnitEnum) { // @phpstan-ignore-line
+        if ($value instanceof \UnitEnum) { // @phpstan-ignore-line
             return $value->name;
         }
 

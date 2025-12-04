@@ -2,6 +2,7 @@
 
 namespace Schemantic\Attribute\Validate;
 
+use Schemantic\Attribute\RepetitiveAttributeInterface;
 use Schemantic\SchemaInterface;
 
 /**
@@ -15,7 +16,7 @@ use Schemantic\SchemaInterface;
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
-abstract class BaseValidation
+abstract class ValidateAttribute implements RepetitiveAttributeInterface
 {
     /**
      * Performs validation
@@ -43,7 +44,7 @@ abstract class BaseValidation
             return "'$value'";
         }
         if (is_array($value)) {
-            return json_encode($value, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
         }
         if ($value instanceof \DateTimeInterface) {
             return $value->format(\DateTimeInterface::ATOM);
@@ -55,7 +56,7 @@ abstract class BaseValidation
             return $value->name;
         }
         if (is_object($value)) {
-            return $value::class . json_encode($value, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);
+            return $value::class . json_encode($value, JSON_UNESCAPED_UNICODE);
         }
         return (string)$value;
     }

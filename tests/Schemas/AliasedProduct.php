@@ -7,9 +7,17 @@ use Schemantic\Attribute\Alias;
 
 class AliasedProduct extends Product
 {
-    #[Alias('total')]
-    public float  $price;
+    public function __construct(
+        string $name,
 
-    #[Alias('info')]
-    public string $description = '';
+        #[Alias('total')]
+        float $price,
+
+        array $tags,
+
+        #[Alias('info')]
+        string $description = ''
+    ) {
+        parent::__construct($name, $price, $tags, $description);
+    }
 }

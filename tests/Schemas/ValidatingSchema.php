@@ -56,13 +56,13 @@ class ValidatingSchema extends Schema
         #[Validate\Plain()]
         public array $valuePlain,
 
-        #[Validate\Validate('validateValueValidate', 'value must be a numeric string')]
+        #[Validate\Validator('validateValueValidate', errorMessage: 'value must be a numeric string')]
         public string $valueValidate,
 
         #[Validate\GreaterThan(17)]
         #[Validate\LowerThan(100)]
         #[Validate\NotIn([42, 87, 91])]
-        #[Validate\Validate('validateValueManyValidations', 'value must be odd')]
+        #[Validate\Validator('validateValueManyValidations', errorMessage: 'value must be odd')]
         public int $valueManyValidations,
     ) {
     }

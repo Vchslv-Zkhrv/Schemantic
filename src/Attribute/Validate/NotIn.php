@@ -8,7 +8,7 @@ use Schemantic\SchemaInterface;
 /**
  * Use to check if the property value does not belong to a set
  *
- * @extends BaseValidation<mixed>
+ * @extends ValidateAttribute<mixed>
  *
  * @category Library
  * @package  Schemantic\Attribute\Validate
@@ -17,7 +17,7 @@ use Schemantic\SchemaInterface;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PROPERTY|Attribute::TARGET_PARAMETER|Attribute::IS_REPEATABLE)]
-class NotIn extends BaseValidation
+class NotIn extends ValidateAttribute
 {
     /**
      * NotIn constructor
