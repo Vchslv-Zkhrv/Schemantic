@@ -45,11 +45,11 @@ trait SchemaTrait
         $allGroups = [Group::DEFAULT_GROUP_NAME,];
 
         foreach ((new \ReflectionClass(static::class))->getAttributes() as $attr) {
-            if (!is_subclass_of($attr->name, AttributeInterface::class)) {
+            $attr = $attr->newInstance();
+
+            if (!is_subclass_of($attr::class, AttributeInterface::class)) {
                 continue;
             }
-
-            $attr = $attr->newInstance();
 
             if ($attr instanceof Group) {
                 $allGroups[] = $attr->name;
@@ -90,11 +90,11 @@ trait SchemaTrait
             $paramGroup = new Group($group);
 
             foreach ($param->getAttributes() as $attr) {
-                if (!is_subclass_of($attr->name, AttributeInterface::class)) {
+                $attr = $attr->newInstance();
+
+                if (!is_subclass_of($attr::class, AttributeInterface::class)) {
                     continue;
                 }
-
-                $attr = $attr->newInstance();
 
                 if ($attr instanceof Group) {
                     $allGroups[] = $attr->name;
