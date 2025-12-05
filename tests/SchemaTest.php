@@ -921,7 +921,7 @@ class SchemaTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $schema->value);
 
         $nestedJSON = '{"id":123456,"value":"{\"foo\":\"bar\"}"}';
-        $schema = SchemaWithJSONs::fromJSON($normalJSON, group: 'jsonValue');
+        $schema = SchemaWithJSONs::fromJSON($nestedJSON, group: 'jsonValue');
         $this->assertEquals(123456, $schema->id);
         $this->assertIsArray($schema->value);
         $this->assertEquals(['foo' => 'bar'], $schema->value);
@@ -948,7 +948,7 @@ class SchemaTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $schema->tags);
 
         $formattedArray = [98765, 'foo|bar'];
-        $schema = SchemaWithCustomParseDump::fromArray($normalArray, parse: true);
+        $schema = SchemaWithCustomParseDump::fromArray($formattedArray, parse: true);
         $this->assertEquals(98765, $schema->id);
         $this->assertEquals(['foo', 'bar'], $schema->tags);
     }

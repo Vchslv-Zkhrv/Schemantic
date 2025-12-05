@@ -178,6 +178,12 @@ trait SchemaTrait
             $attributes = $propertiesAttributes[$name];
             $arrayOfAttribute = $attributes->getOne(ArrayOf::class);
 
+            $parseAttribute = $attributes->getOne(ParseInterface::class, strict: false);
+            if ($parse && $parseAttribute) {
+                $raw[$name] = $parseAttribute->parse($value, static::class);
+                continue;
+            }
+
             $asType = $param->getType();
             if ($asType instanceof \ReflectionUnionType) {
                 $types = $asType->getTypes();
