@@ -5,7 +5,7 @@ namespace Schemantic\Attribute;
 use Attribute;
 
 /**
- * Propagate property value to nested subchemas
+ * Propagate property value to nested subchemas and arrays
  *
  * Subschema's own property values will overwrite propagated ones
  *

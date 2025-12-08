@@ -185,6 +185,10 @@ trait SchemaTrait
                 $propagated[$name] = $value;
             }
 
+            if (is_array($value) && !array_key_exists($name, $propagated)) {
+                $value = array_merge($propagated, $value);
+            }
+
             $parseAttribute = $attributes->getOne(ParseInterface::class, strict: false);
             if ($parse && $parseAttribute) {
                 $raw[$name] = $parseAttribute->parse($value, static::class);
