@@ -10,6 +10,7 @@ use Schemantic\Attribute\Dump\BaseDumpInterface;
 use Schemantic\Attribute\Dump\DumpInterface;
 use Schemantic\Attribute\Group;
 use Schemantic\Attribute\Parse\ParseInterface;
+use Schemantic\Attribute\Propagate;
 use Schemantic\Attribute\Validate\ValidateAttribute;
 use Schemantic\Exception\DateParsingException;
 use Schemantic\Exception\SchemaException;
@@ -163,6 +164,7 @@ trait SchemaTrait
         $schemaAttributes = self::_getSchemaAttributes(group: $group);
         $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
+        $propagated = [];
         $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
         foreach ($params as $param) {
             $name = $param->getName();
@@ -177,6 +179,11 @@ trait SchemaTrait
 
             $attributes = $propertiesAttributes[$name];
             $arrayOfAttribute = $attributes->getOne(ArrayOf::class);
+
+            $propagateAttribute = $attributes->getOne(Propagate::class);
+            if ($propagateAttribute) {
+                $propagated[$name] = $value;
+            }
 
             $parseAttribute = $attributes->getOne(ParseInterface::class, strict: false);
             if ($parse && $parseAttribute) {
@@ -247,7 +254,7 @@ trait SchemaTrait
                         if ($arrayOf) {
                             foreach ($schemaValues as $key => $values) {
                                 $raw[$name][$key] = $strType::fromArray(
-                                    raw: $values,
+                                    raw: array_merge($propagated, $values),
                                     byAlias: $byAlias,
                                     validate: $validate,
                                     parse: $parse,
@@ -256,7 +263,7 @@ trait SchemaTrait
                             }
                         } else {
                             $raw[$name] = $strType::fromArray(
-                                raw: $schemaValues,
+                                raw: array_merge($propagated, $schemaValues),
                                 byAlias: $byAlias,
                                 validate: $validate,
                                 parse: $parse,

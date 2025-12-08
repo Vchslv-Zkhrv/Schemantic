@@ -9,6 +9,7 @@ use Schemantic\Tests\Objects\User;
 use Schemantic\Tests\Objects\ShortUser;
 use Schemantic\Tests\Schemas\Product;
 use Schemantic\Tests\Schemas\AliasedProduct;
+use Schemantic\Tests\Schemas\RpcSchema;
 use Schemantic\Tests\Schemas\SchemaWithCustomParseDump;
 use Schemantic\Tests\Schemas\SchemaWithGroups;
 use Schemantic\Tests\Schemas\SchemaWithJSONs;
@@ -951,6 +952,23 @@ class SchemaTest extends TestCase
         $schema = SchemaWithCustomParseDump::fromArray($formattedArray, parse: true);
         $this->assertEquals(98765, $schema->id);
         $this->assertEquals(['foo', 'bar'], $schema->tags);
+    }
+
+    public function testPropagate(): void
+    {
+        $inputArray = [
+            'id' => '019afcd1-7483-75e3-b44e-8a43f36cd118',
+            'method' => 'getWeatherForecast',
+            'params' => [
+                'from' => '2025-12-01T00:00:00',
+                'to' => '2025-12-02T00:00:00',
+            ],
+        ];
+
+        $schema = RpcSchema::fromArray($inputArray, parse: true);
+
+        $this->assertEquals('getWeatherForecast', $schema->method);
+        $this->assertEquals('getWeatherForecast', $schema->params->method);
     }
 
     public function tearDown(): void
