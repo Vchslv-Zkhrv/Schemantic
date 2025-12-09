@@ -4,6 +4,7 @@
 namespace Schemantic\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Schemantic\Tests\Objects\StatusEnum;
 use Schemantic\Tests\Schemas\ValidatingSchema;
 
 class ValidationTest extends TestCase
@@ -29,6 +30,7 @@ class ValidationTest extends TestCase
             'valuePlain' => ['a', 'b', 'c'],
             'valueValidate' => '12345678901234567890',
             'valueManyValidations' => 19,
+            'valueExactly' => StatusEnum::ACTIVE,
         ];
     }
 
@@ -53,6 +55,7 @@ class ValidationTest extends TestCase
             'valuePlain' => ['a', 'b', 'c', ['d', 'e', 'f']],
             'valueValidate' => 'aaaaaaaaaaa',
             'valueManyValidations' => 20,
+            'valueExactly' => StatusEnum::BANNED,
         ];
     }
 

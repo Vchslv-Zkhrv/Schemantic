@@ -5,6 +5,7 @@ namespace Schemantic\Tests\Schemas;
 
 use Schemantic\Schema;
 use Schemantic\Attribute\Validate;
+use Schemantic\Tests\Objects\StatusEnum;
 
 class ValidatingSchema extends Schema
 {
@@ -64,6 +65,9 @@ class ValidatingSchema extends Schema
         #[Validate\NotIn([42, 87, 91])]
         #[Validate\Validator('validateValueManyValidations', errorMessage: 'value must be odd')]
         public int $valueManyValidations,
+
+        #[Validate\Exactly(StatusEnum::ACTIVE)]
+        public StatusEnum $valueExactly,
     ) {
     }
 
