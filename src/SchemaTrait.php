@@ -185,7 +185,7 @@ trait SchemaTrait
                 $propagated[$name] = $value;
             }
 
-            if (is_array($value) && !array_key_exists($name, $propagated)) {
+            if (is_array($value) && !array_key_exists($name, $propagated) && !array_is_list($value)) {
                 $value = array_merge($propagated, $value);
             }
 
