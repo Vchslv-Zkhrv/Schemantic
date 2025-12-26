@@ -117,7 +117,7 @@ trait SchemaTrait
         }
 
         if (!in_array($group, $allGroups)) {
-            throw new SchemaException("No such group: '$group'");
+            throw new SchemaException(static::class . " - No such group: '$group'");
         }
 
         return $params;
@@ -174,7 +174,7 @@ trait SchemaTrait
             } elseif ($param->isOptional()) {
                 $value = $param->getDefaultValue();
             } else {
-                throw new SchemaException("No value provided for required field `$name`");
+                throw new SchemaException(static::class ." - No value provided for required field `$name`");
             }
 
             $attributes = $propertiesAttributes[$name];
@@ -251,7 +251,9 @@ trait SchemaTrait
 
                     if (!is_array($schemaValues)) {
                         $cls = gettype($schemaValues);
-                        throw new SchemaException("$type: Parameter $name must be an array or schema, $cls given");
+                        throw new SchemaException(
+                            static::class . " - $type: Parameter $name must be an array or schema, $cls given"
+                        );
                     }
 
                     try {
@@ -279,7 +281,7 @@ trait SchemaTrait
                         throw $se;
                     } catch (\Throwable $e) {
                         // if an unexpected error occurred, raise SchemaException with previous=e
-                        throw new SchemaException("$type: {$e->getMessage()}", $e->getCode(), $e);
+                        throw new SchemaException(static::class . " - $type: {$e->getMessage()}", $e->getCode(), $e);
                     }
                 } catch (\Throwable $e) {
                     if ($i+1 == count($types)) {
@@ -671,7 +673,9 @@ trait SchemaTrait
         } catch (SchemaException $se) {
             throw $se;
         } catch (\Throwable $e) {
-            throw new SchemaException("An error occurred: '{$e->getMessage()}'", $e->getCode(), $e);
+            throw new SchemaException(
+                static::class . " - An error occurred: '{$e->getMessage()}'", $e->getCode(), $e
+            );
         }
 
         if ($validate) {
@@ -1124,7 +1128,8 @@ trait SchemaTrait
 
         if ($failed && $throw) {
             throw new ValidationException(
-                "Validation for field(s) `" . implode('`, `', array_keys($failed)) . "` failed:\n" .
+                static::class .
+                " - Validation for field(s) `" . implode('`, `', array_keys($failed)) . "` failed:\n" .
                 json_encode($failed, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
             );
         }
@@ -1345,7 +1350,9 @@ trait SchemaTrait
                 }
                 return $result;
             } else {
-                throw new ParsingException("Value $name expected to be array, got " . gettype($value));
+                throw new ParsingException(
+                    static::class . " - Value $name expected to be array, got " . gettype($value)
+                );
             }
         }
 
@@ -1402,12 +1409,14 @@ trait SchemaTrait
                 if ($result) {
                     return $result;
                 } else {
-                    throw new DateParsingException("Cannot parse $name as $strType: bad datetime format");
+                    throw new DateParsingException(
+                        static::class . " - Cannot parse $name as $strType: bad datetime format"
+                    );
                 }
             } elseif (is_int($value)) {
                 return (new $strType)->setTimestamp($value);
             } else {
-                throw new ParsingException("cannot parse $name as date/time type $type");
+                throw new ParsingException(static::class . " - Cannot parse $name as date/time type $type");
             }
         }
 
@@ -1432,7 +1441,7 @@ trait SchemaTrait
             }
         }
 
-        throw new ParsingException("cannot parse $name as $type");
+        throw new ParsingException(static::class . " - Cannot parse $name as $type");
     }
 
     /**

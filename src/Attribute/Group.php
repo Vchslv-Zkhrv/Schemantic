@@ -111,7 +111,7 @@ class Group implements AttributeInterface
     {
         if ($attr instanceof SingleAttributeInterface) {
             if (isset($this->single[$attr::class])) {
-                throw new SchemaException("Cannot group repetative attributes");
+                throw new SchemaException("Cannot group repetative attributes of class " . $attr::class);
             }
 
             $this->single[$attr::class] = $attr;
@@ -182,7 +182,7 @@ class Group implements AttributeInterface
 
         foreach ($groups as $g) {
             if ($g->name != $merged->name) {
-                throw new SchemaException("Cannot merge groups with different names");
+                throw new SchemaException("Cannot merge groups with different names '$merged->name' and '$g->name'");
             }
             foreach ($g->allSingle() as $attr) {
                 $merged->addAttribute($attr);

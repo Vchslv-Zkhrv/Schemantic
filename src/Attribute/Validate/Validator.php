@@ -43,17 +43,17 @@ class Validator extends ValidateAttribute
             } elseif (method_exists($validator, $method)) {
                 return $validator->$method($value);
             } else {
-                throw new SchemaException("Validator has no such method: $method");
+                throw new SchemaException($schema::class . " - Validator has no such method: $method");
             }
         }
 
         if (class_exists($validator)) {
             if ($method === null) {
-                throw new SchemaException("No \$method parameter specified");
+                throw new SchemaException($schema::class . " - No \$method parameter specified");
             } elseif (method_exists($validator, $method)) {
                 return $validator::$method($value);
             } else {
-                throw new SchemaException("Validator has no such method: $method");
+                throw new SchemaException($schema::class . " - Validator has no such method: $method");
             }
         }
 

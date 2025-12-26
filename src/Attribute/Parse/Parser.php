@@ -38,17 +38,17 @@ class Parser implements ParseInterface
             } elseif (method_exists($parser, $method)) {
                 return $parser->$method($value);
             } else {
-                throw new SchemaException("Parser has no such method: $method");
+                throw new SchemaException("$schema - Parser has no such method: $method");
             }
         }
 
         if (class_exists($parser)) {
             if ($method === null) {
-                throw new SchemaException("No \$method parameter specified");
+                throw new SchemaException("$schema - No \$method parameter specified");
             } elseif (method_exists($parser, $method)) {
                 return $parser::$method($value);
             } else {
-                throw new SchemaException("Parser has no such method: $method");
+                throw new SchemaException("$schema - Parser has no such method: $method");
             }
         }
 

@@ -39,17 +39,17 @@ class Dumper implements DumpInterface
             } elseif (method_exists($dumper, $method)) {
                 return $dumper->$method($value);
             } else {
-                throw new SchemaException("Dumper has no such method: $method");
+                throw new SchemaException("$schema - Dumper has no such method: $method");
             }
         }
 
         if (class_exists($dumper)) {
             if ($method === null) {
-                throw new SchemaException("No \$method parameter specified");
+                throw new SchemaException("$schema - No \$method parameter specified");
             } elseif (method_exists($dumper, $method)) {
                 return $dumper::$method($value);
             } else {
-                throw new SchemaException("Dumper has no such method: $method");
+                throw new SchemaException("$schema - Dumper has no such method: $method");
             }
         }
 
