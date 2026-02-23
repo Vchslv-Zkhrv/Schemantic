@@ -8,259 +8,141 @@ Recursively parsing PHP structures. Pure PHP 8.1+, no dependencies
 composer require schemantic/schemantic
 ```
 
+## Simple example
+
+
+Schemas:
+
+```php
+use Schemantic\Attribute\ArrayOf;
+use Schemantic\Attribute\DateTimeFormat;
+use Schemantic\Attribute\Validate;
+use Schemantic\Attribute\Alias;
+use Schemantic\Schema;
+
+class Tag extends Schema
+{
+    public function __construct(
+        #[Validate\GreaterThan(0)]
+        public readonly int $id,
+
+        #[Validate\NotEmpty]
+        #[Alias('name')]
+        public readonly stirng $title,
+
+        #[Validate\Validator(ValidateHelper::class, 'validateColor')]
+        public readonly ?string $color,
+    ) {
+    }
+}
+
+
+#[DateTimeFormat('unix')]
+class Product extends Schema
+{
+    public function __construct(
+        #[Validate\GreaterThan(0)]
+        public readonly int $id,
+
+        public readonly string $name,
+
+        public readonly \DateTimeImmutable $createdAt,
+
+        public readonly ?\DateTimeImmutable $deletedAt = null,
+
+        #[Validate\GreaterThan(0)]
+        public readonly ?float $price = null,
+
+        #[ArrayOf(Tag::class)]
+        #[Validate\Length(max: 3)]
+        public readonly array $tags = [],
+    ) {
+    }
+}
+```
+
+
+Data to read:
+
+```json
+{
+    "id": 123456789,
+    "name": "test-product",
+    "createdAt": 1771852144,
+    "price": 12.3,
+    "tags": [
+        {
+            "id": 1,
+            "name": "tag1",
+            "color": "#ffd900"
+        },
+        {
+            "id": 2,
+            "name": "tag2",
+            "color": null
+        }
+    ]
+}
+```
+
+
+Usage:
+
+```php
+$raw = '{...}';  // the JSON from above
+
+// easily switch between different formats
+$responseData = Product::fromJSON($raw)->toArray(byAlias: true, dump: true, skipNulls: true);
+```
+
+```php
+$data = '[{...}, {...}]';  // array of JSONs from above
+
+// read JSON as Product[], and exclude rows that do not pass validation
+$rows = Product::fromJSONMultiple($data, validate: 'exclude');
+```
+
+```php
+$model = new \App\Models\Product();  // Laravel model / Doctrine Entity
+
+// Update any object fields with an direct assignment and calling setters (::setName(), setPublic()). Virtual setters included
+$schema = ...;
+$schema->updateObject($model);
+```
+
+```php
+$model = ...;  // Laravel model / Doctrine Entity
+
+// Read any object fields with direct access and calling getters (::getName(), ::getPublic()). Virtual getter included
+$schema = Product::fromObject($model);
+```
+
+```php
+$schema = ...;
+
+// Pass __construct params & set other properties after construction if needed
+$model = Product::buildObject(\App\Models\Product::class);
+```
+
+
+
 ## Features:
 
-- Recursive parse sub-structures (and arrays of sub-structures)
-- No depenencies (pure PHP)
-- Based on Traits, so you can easily inject Schemantic into your project
-- ORM integration with Doctrine support
-- JSON parsing
-- `DateTimeInerface` dump & parsing
-- Enum dump & parsing
+- __Recursive__ sub-structures parsing (and arrays of sub-structures)
+- Custom field __validation__, __parsing__ and __dumping__ via attributes
+- Pre-defined fields validations
 - Fields aliases
-- Fields validations
+- ORM integration
+- JSON parsing
+- Enum dump & parsing
 
 
 ## Supported types:
 
 1. built-in PHP types
 2. DateTimeInterface
-3. UnitEnumCase and BackedEnumCase
+3. UnitEnum and BackedEnum
 4. Sub-schemas
 5. Arrays of types above
 6. Nullable types
-
-
-## Usage:
-
-### Recursive parsing:
-
-Schemas:
-```php
-use Schemantic\Attribute\ArrayOf;
-use Schemantic\Attribute\Alias;
-use Schemantic\Attribute\DateTimeFormat;
-use Schemantic\Schema;
-use Schemantic\SchemaInterface;
-use Schemantic\SchemaTrait;
-
-class Category extends Schema
-{
-    public function __construct(
-        #[Alias('categoryId')]
-        public readonly string $id,
-
-        public readonly string $icon
-    ) {
-    }
-}
-
-
-class MenuChapter extends Schema
-{
-    public function __construct(
-        #[Alias('chapterId')]
-        public readonly string $id,
-
-        public readonly string $icon,
-
-        #[ArrayOf(Category::class)]
-        public readonly array $categories
-    ) {
-    }
-}
-
-#[DateTimeFormat('H:i')]
-class WorkingHours implements SchemaInterface
-{
-    // You can use 'use SchemaTrait' + 'implements SchemaInterface' instead of 'extends Schema'
-    use SchemaTrait;
-
-    public function __construct(
-        public \DateTimeImmutable $weekdayOpen,
-        public \DateTimeImmutable $weekdayClose,
-        public \DateTimeImmutable $weekendOpen,
-        public \DateTimeImmutable $weekendClose
-    ) {
-    }
-}
-
-class Menu extends Schema
-{
-    public function __construct(
-        #[ArrayOf(MenuChapter::class)]
-        public array $chapters,
-        public readonly WorkingHours $workingHours,
-        public string $language = 'en'
-    ) {
-    }
-}
-```
-
-Source data:
-```json
-{
-    "workingHours": {
-        "weekdayOpen": "09:00",
-        "weekdayClose": "20:00",
-        "weekendOpen": "12:00",
-        "weekendClose": "23:00"
-    },
-    "chapters": {
-        "appetizers": {
-            "chapterId": "appetizersid",
-            "icon": "link/to/icon",
-            "categories": {
-                "salads": {
-                    "categoryId": "someid1",
-                    "icon" "link/to/icon"
-                },
-                "platters": {
-                    "categoryId": "someid2",
-                    "icon": "link/to/icon"
-                }
-            }
-        },
-        "main course": {
-            "chapterId": "maincourseid",
-            "icon": "link/to/icon",
-            "categories": {
-                "pizzas": {
-                    "categoryId": "someid3",
-                    "icon": "link/to/icon"
-                },
-                "noodles": {
-                    "categoryId": "someid4",
-                    "icon": "link/to/icon"
-                }
-            }
-        }
-    }
-}
-```
-
-Combine:
-```php
-// $json = ...
-$menuSchema = MenuSchema::fromJSON($json);
-
-// and vice versa:
-$json = $menuSchema->toJSON(pretty: true); // will return the same, but with language='en'
-```
-
----
-
-### With ORM (like Doctrine)
-
-Entity:
-```php
-class User
-{
-    private ?int $id = null;
-    private string $status;
-    private \DateTimeImmutable $createdAt;
-
-    public function __construct(StatusEnum $status)
-    {
-        $this->status = $status->value;
-        $this->createdAt = new \DateTimeImmutable('now');
-    }
-
-    public function getId(): ?int
-    {
-        return $this->id;
-    }
-
-    public function getStatus(): StatusEnum
-    {
-        return StatusEnum::from($this->status);
-    }
-
-    public function getCreatedAt(): \DateTimeInterface
-    {
-        return $this->createdAt;
-    }
-
-    public function setStatus(StatusEnum $status): static
-    {
-        $this->status = $status->value;
-    }
-}
-```
-
-Schema:
-```php
-use Schemantic\Schema;
-
-class UserSchema extends Schema
-{
-    public function __construct(
-        public readonly ?int $id,
-        public readonly StatusEnum $status,
-        public readonly \DateTimeImmutable $createdAt
-    ) {
-    }
-}
-```
-
-Reading from object:
-```php
-$user = new User(StatusEnum::ACTIVE);
-
-$responseBody = UserSchema::fromObject($user)->toJSON(skipNulls: true);
-```
-
-Updating object:
-```php
-$user = $this->userRepository->find($id);
-$userSchema = UserSchema::fromJSON($requestBody, validate:true);
-
-$userSchema->updateObject($user);
-```
-
-Creating object:
-```php
-$userSchema = UserSchema::fromJSON($requestBody, validate:true);
-
-$user = $userSchema->buildObject(User::class);
-```
----
-
-### Validating:
-
-```php
-use Schemantic\Schema;
-use Schemantic\Attribute\Validate;
-
-class UserSchema extends Schema
-{
-    public function validateBirthday(\DateTimeImmutable $birthday): bool
-    {
-        return (new \DateTime('now'))->diff($birthday)->y > 17;
-    }
-
-    public function __construct(
-        #[Validate\Validate('validateBirthday')]
-        public readonly \DateTimeImmutable $birthday,
-
-        #[Validate\Length(max: 100)]
-        public readonly string $firstname,
-
-        #[Validate\Length(max: 100)]
-        public readonly string $lastname,
-
-        #[Validate\Length(min: 6, max: 100)]
-        public readonly string $username,
-
-        public readonly string $email,
-    ) {
-        $this->validate(true);
-    }
-}
-```
-
-**How it works**:
-- Validations will be proceeded when using any `from...()` method or the `update()` method
-- When calling `__construct`, you need to call `$this->validate(true)` manually
-- When updating with property assignment (`$schema->value = $newValue`), **validations will not be proceded automatically**
-- You can call `validate()` method when you neeed
+7. Union types

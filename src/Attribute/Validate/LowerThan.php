@@ -34,6 +34,10 @@ class LowerThan extends ValidateAttribute
 
     public function check($value, SchemaInterface $schema): bool
     {
+        if ($value === null) {
+            return true;
+        }
+
         if ($this->orEqualsTo) {
             return $value <= $this->value;
         } else {
