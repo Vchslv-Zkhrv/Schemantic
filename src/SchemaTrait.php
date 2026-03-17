@@ -799,7 +799,7 @@ trait SchemaTrait
         $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
         foreach ($fields as $key => $value) {
-            $propertyAttributes = $propertiesAttributes[$key] ?? null;
+            $propertyAttributes = $propertiesAttributes[$key] ?? new Group($group ?? Group::DEFAULT_GROUP_NAME);
             // phpcs:disable
             if (
                 $dump
