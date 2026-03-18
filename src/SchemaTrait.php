@@ -819,7 +819,7 @@ trait SchemaTrait
         $schemaAttributes = self::_getSchemaAttributes(group: $group);
         $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
-        $constructParams = new ReflectionMethod(static::class, '__construct')->getParameters();
+        $constructParams = (new ReflectionMethod(static::class, '__construct'))->getParameters();
         $constructParams = array_combine(
             array_column($constructParams, 'name'),
             $constructParams
