@@ -15,7 +15,6 @@ Schemas:
 
 ```php
 use Schemantic\Attribute\ArrayOf;
-use Schemantic\Attribute\DateTimeFormat;
 use Schemantic\Attribute\Validate;
 use Schemantic\Attribute\Alias;
 use Schemantic\Schema;
@@ -37,7 +36,6 @@ class Tag extends Schema
 }
 
 
-#[DateTimeFormat('unix')]
 class Product extends Schema
 {
     public function __construct(
@@ -46,8 +44,10 @@ class Product extends Schema
 
         public readonly string $name,
 
+        #[Timestamp]
         public readonly \DateTimeImmutable $createdAt,
 
+        #[Timestamp]
         public readonly ?\DateTimeImmutable $deletedAt = null,
 
         #[Validate\GreaterThan(0)]

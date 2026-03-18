@@ -3,6 +3,9 @@
 namespace Schemantic\Attribute\Dump;
 
 use Attribute;
+use ReflectionClass;
+use ReflectionParameter;
+use ReflectionProperty;
 
 /**
  * Dump as nested JSON
@@ -25,8 +28,11 @@ class JSON implements DumpInterface
     {
     }
 
-    public function dump($value, string $schema): string
-    {
+    public function dump(
+        $value,
+        ReflectionClass $schema,
+        ReflectionProperty|ReflectionParameter $field,
+    ) {
         return json_encode($value, $this->flags);
     }
 }

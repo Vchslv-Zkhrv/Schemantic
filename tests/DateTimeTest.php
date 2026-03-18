@@ -50,6 +50,24 @@ class DateTimeTest extends TestCase
         );
     }
 
+    public function testParseTimestamp3(): void
+    {
+        $array = [
+            'label' => 'event',
+            'date' => 1773829144,
+            'start' => 1773829144000,
+            'end' => 1773829144.123456,
+        ];
+
+        $schema = UnixEventSchema::fromArray($array, parse: true, group: 'timestamp3');
+
+        $this->assertEquals($schema->date->getTimestamp(), 1773829144);
+        $this->assertEquals($schema->start->getTimestamp(), 1773829144);
+        $this->assertEquals($schema->start->format('u'), '000000');
+        $this->assertEquals($schema->end->getTimestamp(), 1773829144);
+        $this->assertEquals($schema->end->format('u'), '123000');
+    }
+
     public function tearDown(): void
     {
         restore_exception_handler();

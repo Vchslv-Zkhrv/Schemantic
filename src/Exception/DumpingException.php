@@ -1,16 +1,14 @@
 <?php
 
-namespace Schemantic\Attribute\Parse;
+namespace Schemantic\Exception;
 
 /**
- * Base interface for attributes that parses one value into another
- *
  * @category Library
- * @package  Schemantic\Attribute\Parse
+ * @package  Schemantic\Exception
  * @author   Vyacheslav Zakharov <vchslv.zkhrv@gmail.com>
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
-interface BaseParseInterface
+class DumpingException extends SchemaException
 {
 }

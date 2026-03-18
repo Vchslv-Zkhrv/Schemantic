@@ -476,7 +476,7 @@ class SchemaTest extends TestCase
             status: StatusEnum::BANNED
         );
 
-        $json = $filter->toJSON();
+        $json = $filter->toJSON(true);
 
         $raw = json_decode($json, true);
 

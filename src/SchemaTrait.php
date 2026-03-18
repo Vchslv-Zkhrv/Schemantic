@@ -2,11 +2,12 @@
 
 namespace Schemantic;
 
+use DateTimeInterface;
 use Schemantic\Attribute\Alias;
 use Schemantic\Attribute\ArrayOf;
 use Schemantic\Attribute\AttributeInterface;
+use Schemantic\Attribute\DateTimeAttributeInterface;
 use Schemantic\Attribute\DateTimeFormat;
-use Schemantic\Attribute\Dump\BaseDumpInterface;
 use Schemantic\Attribute\Dump\DumpInterface;
 use Schemantic\Attribute\Group;
 use Schemantic\Attribute\Parse\ParseInterface;
@@ -16,6 +17,13 @@ use Schemantic\Exception\DateParsingException;
 use Schemantic\Exception\SchemaException;
 use Schemantic\Exception\ParsingException;
 use Schemantic\Exception\ValidationException;
+
+use ReflectionParameter;
+use ReflectionProperty;
+use ReflectionType;
+use ReflectionUnionType;
+use ReflectionClass;
+use ReflectionMethod;
 
 /**
  * Recursively parsing structure trait.
@@ -31,7 +39,6 @@ use Schemantic\Exception\ValidationException;
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
-#[DateTimeFormat('Y-m-d\TH:i:s')]
 trait SchemaTrait
 {
     /**
@@ -45,7 +52,7 @@ trait SchemaTrait
         $currentGroup = new Group($group);
         $allGroups = [Group::DEFAULT_GROUP_NAME,];
 
-        foreach ((new \ReflectionClass(static::class))->getAttributes() as $attr) {
+        foreach ((new ReflectionClass(static::class))->getAttributes() as $attr) {
             $attr = $attr->newInstance();
 
             if (!is_subclass_of($attr::class, AttributeInterface::class)) {
@@ -62,8 +69,8 @@ trait SchemaTrait
             }
         }
 
-        if (!in_array($group, $allGroups)) {
-            return new Group($group);
+        if (!$currentGroup->has(DateTimeAttributeInterface::class)) {
+            $currentGroup->addAttribute(new DateTimeFormat('Y-m-d\TH:i:s'));
         }
 
         return $currentGroup;
@@ -83,7 +90,7 @@ trait SchemaTrait
         $allGroups = [Group::DEFAULT_GROUP_NAME,];
 
         $params = [];
-        $reflectionParams = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
+        $reflectionParams = (new ReflectionMethod(static::class, '__construct'))->getParameters();
 
         foreach ($reflectionParams as $param) {
             $paramAttrs = [];
@@ -165,7 +172,7 @@ trait SchemaTrait
         $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
         $propagated = [];
-        $params = (new \ReflectionMethod(static::class, '__construct'))->getParameters();
+        $params = (new ReflectionMethod(static::class, '__construct'))->getParameters();
         foreach ($params as $param) {
             $name = $param->getName();
 
@@ -191,12 +198,12 @@ trait SchemaTrait
 
             $parseAttribute = $attributes->getOne(ParseInterface::class, strict: false);
             if ($parse && $parseAttribute) {
-                $raw[$name] = $parseAttribute->parse($value, static::class);
+                $raw[$name] = $parseAttribute->parse($value, new ReflectionClass(static::class), $param);
                 continue;
             }
 
             $asType = $param->getType();
-            if ($asType instanceof \ReflectionUnionType) {
+            if ($asType instanceof ReflectionUnionType) {
                 $types = $asType->getTypes();
             } else {
                 $types = [$asType];
@@ -222,7 +229,9 @@ trait SchemaTrait
                             $raw[$name] = self::_parse(
                                 value: $value,
                                 name: $name,
+                                strType: $strType,
                                 type: $type,
+                                field: $param,
                                 propertyAttributes: $attributes,
                                 schemaAttributes: $schemaAttributes,
                             );
@@ -465,13 +474,13 @@ trait SchemaTrait
 
         if (in_array('__construct', get_class_methods($class))) {
             $constructParams = array_map(
-                function (\ReflectionParameter $p) use ($fields) {
+                function (ReflectionParameter $p) use ($fields) {
                     $name = $p->name;
                     $val = $fields[$name];
                     unset($fields[$name]);
                     return $val;
                 },
-                (new \ReflectionMethod($class, '__construct'))->getParameters()
+                (new ReflectionMethod($class, '__construct'))->getParameters()
             );
         } else {
             $constructParams = [ ];
@@ -798,6 +807,15 @@ trait SchemaTrait
         $schemaAttributes = self::_getSchemaAttributes(group: $group);
         $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
 
+        $constructParams = new ReflectionMethod(static::class, '__construct')->getParameters();
+        $constructParams = array_combine(
+            array_column($constructParams, 'name'),
+            $constructParams
+        );
+        /**
+         * @var array<string,ReflectionParameter> $constructParams
+         */
+
         foreach ($fields as $key => $value) {
             $propertyAttributes = $propertiesAttributes[$key] ?? new Group($group ?? Group::DEFAULT_GROUP_NAME);
             // phpcs:disable
@@ -806,7 +824,7 @@ trait SchemaTrait
                 && (
                     $value instanceof \DateTimeInterface
                     || $value instanceof \UnitEnum
-                    || $propertyAttributes?->has(BaseDumpInterface::class)
+                    || $propertyAttributes?->has(DumpInterface::class)
                 )
             ) {
             // phpcs:enable
@@ -814,6 +832,7 @@ trait SchemaTrait
                     value: $value,
                     schemaAttributes: $schemaAttributes,
                     propertyAttributes: $propertyAttributes,
+                    field: $constructParams[$key],
                 );
             } elseif ($value instanceof SchemaInterface) {
                 $array[$key] = $value->toArray(
@@ -875,8 +894,8 @@ trait SchemaTrait
         ?string $group = null,
     ): array {
         $names = array_map(
-            fn (\ReflectionParameter $p) => $p->name,
-            (new \ReflectionMethod(static::class, '__construct'))->getParameters()
+            fn (ReflectionParameter $p) => $p->name,
+            (new ReflectionMethod(static::class, '__construct'))->getParameters()
         );
 
         if ($byAlias) {
@@ -1267,13 +1286,13 @@ trait SchemaTrait
     /**
      * Check type is a schemantic object
      *
-     * @param \ReflectionType $type param type as string
+     * @param ReflectionType $type param type as string
      *
      * @return bool
      */
-    private static function _isSchema(\ReflectionType $type): bool
+    private static function _isSchema(ReflectionType $type): bool
     {
-        if ($type instanceof \ReflectionUnionType) {
+        if ($type instanceof ReflectionUnionType) {
             foreach ($type->getTypes() as $subtype) {
                 if (self::_isSchema($subtype)) {
                     return true;
@@ -1301,11 +1320,13 @@ trait SchemaTrait
     /**
      * Parse item from source array
      *
-     * @param mixed|object    $value              value
-     * @param string          $name               array-key
-     * @param \ReflectionType $type               type
-     * @param Group           $propertyAttributes property attributes
-     * @param Group           $schemaAttributes   schema attributes
+     * @param mixed|object                           $value              value
+     * @param string                                 $name               array-key
+     * @param string                                 $strType            clean type name
+     * @param ReflectionType                         $type               type
+     * @param ReflectionProperty|ReflectionParameter $field              field to parse
+     * @param Group                                  $propertyAttributes property attributes
+     * @param Group                                  $schemaAttributes   schema attributes
      *
      * @return mixed|object
      *
@@ -1314,13 +1335,20 @@ trait SchemaTrait
     private static function _parse(
         $value,
         string $name,
-        \ReflectionType $type,
+        string $strType,
+        ReflectionType $type,
+        ReflectionProperty|ReflectionParameter $field,
         Group $propertyAttributes,
         Group $schemaAttributes,
     ): mixed {
-        $parser = $propertyAttributes->getOne(ParseInterface::class);
+        $parser = $propertyAttributes->getOne(ParseInterface::class, strict: false);
         if ($parser) {
-            return $parser->parse($value, static::class);
+            return $parser->parse($value, new ReflectionClass(static::class), $field);
+        }
+
+        if (is_subclass_of($strType, DateTimeInterface::class) || $strType == DateTimeInterface::class) {
+            $parser = $schemaAttributes->getOne(DateTimeAttributeInterface::class, strict: false);
+            return $parser->parse($value, new ReflectionClass(static::class), $field);
         }
 
         $strType = (string)$type;
@@ -1368,11 +1396,11 @@ trait SchemaTrait
     /**
      * Parse item element
      *
-     * @param mixed|object    $value              value
-     * @param string          $name               array-key
-     * @param \ReflectionType $type               type as string
-     * @param Group           $propertyAttributes property attributes
-     * @param Group           $schemaAttributes   schema attributes
+     * @param mixed|object   $value              value
+     * @param string         $name               array-key
+     * @param ReflectionType $type               type as string
+     * @param Group          $propertyAttributes property attributes
+     * @param Group          $schemaAttributes   schema attributes
      *
      * @return mixed|object
      *
@@ -1382,7 +1410,7 @@ trait SchemaTrait
     private static function _parseOne(
         $value,
         string $name,
-        \ReflectionType $type,
+        ReflectionType $type,
         Group $propertyAttributes,
         Group $schemaAttributes,
     ): mixed {
@@ -1391,33 +1419,6 @@ trait SchemaTrait
 
         if ($value instanceof $strType) {
             return $value;
-        }
-
-        if ($strType == \DateTimeInterface::class || is_subclass_of($strType, \DateTimeInterface::class)) {
-            /**
-             * @var class-string<\DateTimeInterface>
-             */
-            if (is_string($value)) {
-                $dtFormat = $propertyAttributes->getOne(DateTimeFormat::class)?->format
-                    ?? $schemaAttributes->getOne(DateTimeFormat::class)?->format
-                    ?? 'Y-m-d\TH:i:s';
-                if ($strType == \DateTimeInterface::class) {
-                    $result = \DateTimeImmutable::createFromFormat($dtFormat, $value);
-                } else {
-                    $result = $strType::createFromFormat($dtFormat, $value);
-                }
-                if ($result) {
-                    return $result;
-                } else {
-                    throw new DateParsingException(
-                        static::class . " - Cannot parse $name as $strType: bad datetime format"
-                    );
-                }
-            } elseif (is_int($value)) {
-                return (new $strType)->setTimestamp($value);
-            } else {
-                throw new ParsingException(static::class . " - Cannot parse $name as date/time type $type");
-            }
         }
 
         if (is_int($value) || is_string($value)) {
@@ -1441,15 +1442,16 @@ trait SchemaTrait
             }
         }
 
-        throw new ParsingException(static::class . " - Cannot parse $name as $type");
+        throw new ParsingException(static::class . " - Cannot parse `$name` as $type");
     }
 
     /**
      * Convert (if possible) value to string or int representation
      *
-     * @param mixed $value              value
-     * @param Group $propertyAttributes property attributes
-     * @param Group $schemaAttributes   schema attributes
+     * @param mixed                                  $value              value
+     * @param Group                                  $propertyAttributes property attributes
+     * @param Group                                  $schemaAttributes   schema attributes
+     * @param ReflectionParameter|ReflectionProperty $field              field to dump
      *
      * @return mixed|string
      */
@@ -1457,21 +1459,18 @@ trait SchemaTrait
         $value,
         Group $propertyAttributes,
         Group $schemaAttributes,
+        ReflectionParameter|ReflectionProperty $field,
     ): mixed {
         $dumper = $propertyAttributes->getOne(DumpInterface::class, strict: false);
         if ($dumper) {
-            return $dumper->dump($value, static::class);
+            return $dumper->dump($value, new ReflectionClass(static::class), $field);
         }
 
-        if ($value instanceof \DateTimeInterface) {
-            $format = $propertyAttributes->getOne(DateTimeFormat::class)?->format
-                ?? $schemaAttributes->getOne(DateTimeFormat::class)?->format
-                ?? 'Y-m-d\TH:i:s';
-            if ($format == 'unix') {
-                return $value->getTimestamp();
-            }
-            return $value->format($format);
+        if ($value instanceof DateTimeInterface) {
+            $dumper = $schemaAttributes->getOne(DateTimeAttributeInterface::class, strict: false);
+            return $dumper->dump($value, new ReflectionClass(static::class), $field);
         }
+
         if ($value instanceof \BackedEnum) { // @phpstan-ignore-line
             return $value->value;
         }

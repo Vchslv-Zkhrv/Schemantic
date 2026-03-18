@@ -2,6 +2,9 @@
 
 namespace Schemantic\Attribute\Dump;
 
+use ReflectionClass;
+use ReflectionParameter;
+use ReflectionProperty;
 use Schemantic\Exception\SchemaException;
 
 use Attribute;
@@ -28,10 +31,14 @@ class Dumper implements DumpInterface
     ) {
     }
 
-    public function dump($value, string $schema)
-    {
+    public function dump(
+        $value,
+        ReflectionClass $schema,
+        ReflectionProperty|ReflectionParameter $field,
+    ) {
         $dumper = $this->dumper;
         $method = $this->method;
+        $schemaClass = $schema->getName();
 
         if (is_object($dumper)) {
             if ($method === null) {
@@ -39,25 +46,24 @@ class Dumper implements DumpInterface
             } elseif (method_exists($dumper, $method)) {
                 return $dumper->$method($value);
             } else {
-                throw new SchemaException("$schema - Dumper has no such method: $method");
+                throw new SchemaException("$schemaClass - Dumper has no such method: $method");
             }
         }
 
         if (class_exists($dumper)) {
             if ($method === null) {
-                throw new SchemaException("$schema - No \$method parameter specified");
+                throw new SchemaException("$schemaClass - No \$method parameter specified");
             } elseif (method_exists($dumper, $method)) {
                 return $dumper::$method($value);
             } else {
-                throw new SchemaException("$schema - Dumper has no such method: $method");
+                throw new SchemaException("$schemaClass - Dumper has no such method: $method");
             }
         }
 
-        if (method_exists($schema, $dumper)) {
-            return $schema::$dumper($value);
+        if (method_exists($schemaClass, $dumper)) {
+            return $schemaClass::$dumper($value);
         }
 
         return $dumper($value);
     }
 }
-

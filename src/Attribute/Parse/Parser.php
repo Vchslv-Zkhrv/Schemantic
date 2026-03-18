@@ -3,6 +3,9 @@
 namespace Schemantic\Attribute\Parse;
 
 use Attribute;
+use ReflectionClass;
+use ReflectionParameter;
+use ReflectionProperty;
 use Schemantic\Exception\SchemaException;
 
 /**
@@ -27,10 +30,14 @@ class Parser implements ParseInterface
     ) {
     }
 
-    public function parse($value, string $schema)
-    {
+    public function parse(
+        $value,
+        ReflectionClass $schema,
+        ReflectionProperty|ReflectionParameter $field,
+    ) {
         $parser = $this->parser;
         $method = $this->method;
+        $schemaClass = $schema->getName();
 
         if (is_object($parser)) {
             if ($method === null) {
@@ -38,22 +45,22 @@ class Parser implements ParseInterface
             } elseif (method_exists($parser, $method)) {
                 return $parser->$method($value);
             } else {
-                throw new SchemaException("$schema - Parser has no such method: $method");
+                throw new SchemaException("$schemaClass - Parser has no such method: $method");
             }
         }
 
         if (class_exists($parser)) {
             if ($method === null) {
-                throw new SchemaException("$schema - No \$method parameter specified");
+                throw new SchemaException("$schemaClass - No \$method parameter specified");
             } elseif (method_exists($parser, $method)) {
                 return $parser::$method($value);
             } else {
-                throw new SchemaException("$schema - Parser has no such method: $method");
+                throw new SchemaException("$schemaClass - Parser has no such method: $method");
             }
         }
 
-        if (method_exists($schema, $parser)) {
-            return $schema::$parser($value);
+        if (method_exists($schemaClass, $parser)) {
+            return $schemaClass::$parser($value);
         }
 
         return $parser($value);

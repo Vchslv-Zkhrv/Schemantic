@@ -3,16 +3,26 @@
 
 namespace Schemantic\Tests\Schemas;
 
-use Schemantic\Attribute\DateTimeFormat;
+use Schemantic\Attribute\Group;
+use Schemantic\Attribute\Timestamp;
 
 class UnixEventSchema extends EventSchema
 {
-    #[DateTimeFormat('Y-m-d')]
-    public readonly \DateTimeImmutable $date;
+    public function __construct(
+        string $label,
 
-    #[DateTimeFormat('H:i:s')]
-    public readonly \DateTimeImmutable $start;
+        #[Timestamp]
+        #[Group('timestamp3', new Timestamp(0, false))]
+        \DateTimeImmutable $date,
 
-    #[DateTimeFormat('H:i:s')]
-    public readonly \DateTimeImmutable $end;
+        #[Timestamp]
+        #[Group('timestamp3', new Timestamp(3, false))]
+        \DateTimeImmutable $start,
+
+        #[Timestamp]
+        #[Group('timestamp3', new Timestamp(3, true))]
+        \DateTimeImmutable $end
+    ) {
+        parent::__construct(...func_get_args());
+    }
 }

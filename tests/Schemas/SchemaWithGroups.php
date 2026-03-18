@@ -6,6 +6,7 @@ namespace Schemantic\Tests\Schemas;
 use Schemantic\Attribute\Alias;
 use Schemantic\Attribute\DateTimeFormat;
 use Schemantic\Attribute\Group;
+use Schemantic\Attribute\Timestamp;
 use Schemantic\Attribute\Validate;
 use Schemantic\Schema;
 
@@ -13,7 +14,7 @@ use Schemantic\Schema;
     new DateTimeFormat('Y-m-d\TH:i:s.u'),
 )]
 #[Group('output',
-    new DateTimeFormat('unix'),
+    new Timestamp(),
 )]
 #[DateTimeFormat('Y-m-d H:i:s')]
 class SchemaWithGroups extends Schema

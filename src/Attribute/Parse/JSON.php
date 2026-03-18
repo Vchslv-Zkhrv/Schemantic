@@ -3,6 +3,9 @@
 namespace Schemantic\Attribute\Parse;
 
 use Attribute;
+use ReflectionClass;
+use ReflectionParameter;
+use ReflectionProperty;
 
 /**
  * Parse nested JSON
@@ -25,8 +28,11 @@ class JSON implements ParseInterface
     {
     }
 
-    public function parse($value, string $schema)
-    {
+    public function parse(
+        $value,
+        ReflectionClass $schema,
+        ReflectionProperty|ReflectionParameter $field,
+    ) {
         return json_decode($value, true, 512, $this->flags);
     }
 }
