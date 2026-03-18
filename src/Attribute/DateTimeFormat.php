@@ -67,6 +67,11 @@ class DateTimeFormat implements DateTimeAttributeInterface
             $class = $type->__toString();
         }
         $class = str_replace('?', '', $class);
+
+        if ($value instanceof $class) {
+            return $value;
+        }
+
         if ($class == DateTimeInterface::class) {
             $class = DateTimeImmutable::class;
         }

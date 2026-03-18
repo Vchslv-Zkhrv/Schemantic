@@ -92,6 +92,15 @@ class Timestamp implements DateTimeAttributeInterface
         } else if ($type instanceof ReflectionType) {
             $class = $type->__toString();
         }
+        $class = str_replace('?', '', $class);
+
+        if ($value instanceof $class) {
+            return $value;
+        }
+
+        if ($class == DateTimeInterface::class) {
+            $class = DateTimeImmutable::class;
+        }
 
         if ($this->precision == 0) {
             $value = (int)$value;
