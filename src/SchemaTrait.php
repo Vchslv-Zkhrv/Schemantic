@@ -42,6 +42,16 @@ use ReflectionMethod;
 trait SchemaTrait
 {
     /**
+     * Override to set default datetime parse&dump format
+     *
+     * @return DateTimeAttributeInterface may be DateTimeFormat, Timestamp or your custom attribute
+     */
+    protected static function getDefaultDateTimeAttribute(): DateTimeAttributeInterface
+    {
+        return new DateTimeFormat('Y-m-d\TH:i:s');
+    }
+
+    /**
      * @param ?string $group group of attributes
      *
      * @return Group
@@ -70,7 +80,7 @@ trait SchemaTrait
         }
 
         if (!$currentGroup->has(DateTimeAttributeInterface::class)) {
-            $currentGroup->addAttribute(new DateTimeFormat('Y-m-d\TH:i:s'));
+            $currentGroup->addAttribute(static::getDefaultDateTimeAttribute());
         }
 
         return $currentGroup;
