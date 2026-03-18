@@ -44,9 +44,11 @@ trait SchemaTrait
     /**
      * Override to set default datetime parse&dump format
      *
+     * @param string $group group name
+     *
      * @return DateTimeAttributeInterface may be DateTimeFormat, Timestamp or your custom attribute
      */
-    protected static function getDefaultDateTimeAttribute(): DateTimeAttributeInterface
+    protected static function getDefaultDateTimeAttribute(string $group): DateTimeAttributeInterface
     {
         return new DateTimeFormat('Y-m-d\TH:i:s');
     }
@@ -80,7 +82,7 @@ trait SchemaTrait
         }
 
         if (!$currentGroup->has(DateTimeAttributeInterface::class)) {
-            $currentGroup->addAttribute(static::getDefaultDateTimeAttribute());
+            $currentGroup->addAttribute(static::getDefaultDateTimeAttribute($group));
         }
 
         return $currentGroup;
