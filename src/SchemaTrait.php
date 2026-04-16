@@ -192,6 +192,8 @@ trait SchemaTrait
                 $value = $raw[$name];
             } elseif ($param->isOptional()) {
                 $value = $param->getDefaultValue();
+                $raw[$name] = $value;
+                continue;
             } else {
                 throw new SchemaException(static::class ." - No value provided for required field `$name`");
             }
@@ -236,6 +238,15 @@ trait SchemaTrait
                         break;
                     }
 
+                    if ($type->allowsNull()) {
+                        if (!array_key_exists($name, $raw)) {
+                            $value = $param->getDefaultValue();
+                            break;
+                        } elseif ($value === null) {
+                            break;
+                        }
+                    }
+
                     if (!$arrayOf && !self::_isSchema($type)) {
                         if ($parse && $value !== null) {
                             $raw[$name] = self::_parse(
@@ -249,15 +260,6 @@ trait SchemaTrait
                             );
                         }
                         break;
-                    }
-
-                    if ($type->allowsNull()) {
-                        if (!array_key_exists($name, $raw)) {
-                            $value = $param->getDefaultValue();
-                            break;
-                        } elseif ($value === null) {
-                            break;
-                        }
                     }
 
                     $schemaValues = $value ?? null;
@@ -830,16 +832,18 @@ trait SchemaTrait
 
         foreach ($fields as $key => $value) {
             $propertyAttributes = $propertiesAttributes[$key] ?? new Group($group ?? Group::DEFAULT_GROUP_NAME);
-            // phpcs:disable
-            if (
+            if ($skipNulls && $value === null) {
+                continue;
+            } elseif (
+                // phpcs:disable
                 $dump
                 && (
                     $value instanceof \DateTimeInterface
                     || $value instanceof \UnitEnum
                     || $propertyAttributes?->has(DumpInterface::class)
                 )
+                // phpcs:enable
             ) {
-            // phpcs:enable
                 $array[$key] = self::_dump(
                     value: $value,
                     schemaAttributes: $schemaAttributes,
@@ -862,9 +866,6 @@ trait SchemaTrait
                     group: $group,
                 );
             } else {
-                if ($skipNulls && $value === null) {
-                    continue;
-                }
                 $array[$key] = $value;
             }
         }
