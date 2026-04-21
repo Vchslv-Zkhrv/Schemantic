@@ -210,13 +210,24 @@ trait SchemaTrait
                 $value = array_merge($propagated, $value);
             }
 
+            $asType = $param->getType();
+
+            if ($asType === null) {
+                $raw[$name] = $value;
+                continue;
+            }
+
+            if ($asType->allowsNull() && $value === null) {
+                $raw[$name] = null;
+                continue;
+            }
+
             $parseAttribute = $attributes->getOne(ParseInterface::class, strict: false);
             if ($parse && $parseAttribute) {
                 $raw[$name] = $parseAttribute->parse($value, new ReflectionClass(static::class), $param);
                 continue;
             }
 
-            $asType = $param->getType();
             if ($asType instanceof ReflectionUnionType) {
                 $types = $asType->getTypes();
             } else {
