@@ -973,7 +973,7 @@ trait SchemaTrait
         ?string $group = null,
     ): array {
         $result = self::_dumpRecursive(
-            fields: $this->getFields($byAlias),
+            fields: $this->getFields(false),
             skipNulls: $skipNulls,
             byAlias: $byAlias,
             dump: $dump,
