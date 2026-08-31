@@ -33,8 +33,12 @@ class OneOf extends ValidateAttribute
         return in_array($value, $this->set);
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         return "{$this->stringify($value)} ∉ {$this->stringify($this->set)}";
     }
 }

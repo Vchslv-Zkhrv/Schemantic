@@ -2,7 +2,7 @@
 
 namespace Schemantic\Attribute\Dump;
 
-use Schemantic\Attribute\SingleAttributeInterface;
+use Schemantic\Attribute\Group\SingleAttributeInterface;
 use Schemantic\SchemaInterface;
 use ReflectionClass;
 use ReflectionParameter;

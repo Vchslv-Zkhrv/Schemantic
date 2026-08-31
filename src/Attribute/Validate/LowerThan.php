@@ -45,8 +45,12 @@ class LowerThan extends ValidateAttribute
         }
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         $sign = $this->orEqualsTo ? '>' : '>=';
         return "{$this->stringify($value)} $sign {$this->stringify($this->value)}";
     }

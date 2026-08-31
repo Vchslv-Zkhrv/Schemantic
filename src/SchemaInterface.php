@@ -220,6 +220,15 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
     ): array;
 
     /**
+     * Returns all field aliases by groups
+     *
+     * @param string $field unaliased field name
+     *
+     * @return array<string,string> group => alias
+     */
+    public static function getFieldAliases(string $field): array;
+
+    /**
      * Returns fields as associative array as-is
      *
      * @param bool    $byAlias apply field aliases
@@ -306,6 +315,7 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
      * @param bool    $throw      thow ValidationException instead of returning `false`
      * @param bool    $stopOnFail stop on first failed check
      * @param bool    $getFails   return bool result or array or fails
+     * @param bool    $byAlias    use field aliases in error message
      * @param ?string $group      group of attributes
      *
      * @return ($getFails is true ? array<string,array> : bool)
@@ -316,6 +326,7 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         bool $throw = false,
         bool $stopOnFail = false,
         bool $getFails = false,
+        bool $byAlias = true,
         ?string $group = null,
     ): array|bool;
 

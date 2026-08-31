@@ -31,8 +31,12 @@ class NotEmpty extends ValidateAttribute
         return !empty($value);
     }
 
-    public function getErrorMessage($value): string
-    {
-        return "!empty({$this->stringify($value)})";
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
+        return "not empty";
     }
 }

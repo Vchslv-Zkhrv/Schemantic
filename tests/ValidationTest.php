@@ -5,6 +5,8 @@ namespace Schemantic\Tests;
 
 use PHPUnit\Framework\TestCase;
 use Schemantic\Tests\Objects\StatusEnum;
+use Schemantic\Tests\Schemas\IfNotSetSchema;
+use Schemantic\Tests\Schemas\IfSetSchema;
 use Schemantic\Tests\Schemas\ValidatingSchema;
 
 class ValidationTest extends TestCase
@@ -80,6 +82,57 @@ class ValidationTest extends TestCase
             $this->assertCount(1, $fails);
             $this->assertArrayHasKey($key, $fails);
         }
+    }
+
+    public function testIfSet(): void
+    {
+        $valid = new IfSetSchema('a', 'b');
+        $valid = new IfSetSchema('a', null);
+        $valid = new IfSetSchema(null, null);
+
+        $invalid = new IfSetSchema(null, 'b');
+        $fails = $invalid->validate(getFails: true, byAlias: false);
+        $this->assertArrayHasKey('childValue', $fails);
+        $this->assertCount(1, $fails);
+        $this->assertCount(1, reset($fails));
+        $this->assertEquals('field `parentValue` is empty', $fails['childValue'][0]);
+
+        $fails = $invalid->validate(getFails: true, byAlias: true);
+        $this->assertArrayHasKey('child', $fails);
+        $this->assertCount(1, $fails);
+        $this->assertCount(1, reset($fails));
+        $this->assertEquals('field `parent` is empty', $fails['child'][0]);
+
+        $fails = $invalid->validate(getFails: true, byAlias: true, group: 'zip');
+        $this->assertArrayHasKey('c', $fails);
+        $this->assertCount(1, $fails);
+        $this->assertCount(1, reset($fails));
+        $this->assertEquals('field `p` is empty', $fails['c'][0]);
+    }
+
+    public function testIfNotSet(): void
+    {
+        $valid = new IfNotSetSchema(null, 'b');
+        $valid = new IfNotSetSchema(null, null);
+
+        $invalid = new IfNotSetSchema('a', 'b');
+        $fails = $invalid->validate(getFails: true, byAlias: false);
+        $this->assertArrayHasKey('childValue', $fails);
+        $this->assertCount(1, $fails);
+        $this->assertCount(1, reset($fails));
+        $this->assertEquals('field `parentValue` is not empty', $fails['childValue'][0]);
+
+        $fails = $invalid->validate(getFails: true, byAlias: true);
+        $this->assertArrayHasKey('child', $fails);
+        $this->assertCount(1, $fails);
+        $this->assertCount(1, reset($fails));
+        $this->assertEquals('field `parent` is not empty', $fails['child'][0]);
+
+        $fails = $invalid->validate(getFails: true, byAlias: true, group: 'zip');
+        $this->assertArrayHasKey('c', $fails);
+        $this->assertCount(1, $fails);
+        $this->assertCount(1, reset($fails));
+        $this->assertEquals('field `p` is not empty', $fails['c'][0]);
     }
 
     public function tearDown(): void

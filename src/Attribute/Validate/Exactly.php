@@ -33,8 +33,12 @@ class Exactly extends ValidateAttribute
         return $value == $this->value;
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         return "{$this->stringify($value)} != {$this->stringify($this->value)}";
     }
 }

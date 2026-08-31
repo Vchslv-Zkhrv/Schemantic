@@ -3,13 +3,16 @@
 namespace Schemantic;
 
 use DateTimeInterface;
-use Schemantic\Attribute\Alias;
+use Schemantic\Attribute\Alias\AliasGeneratorInterface;
+use Schemantic\Attribute\Alias\AliasInterface;
 use Schemantic\Attribute\ArrayOf;
 use Schemantic\Attribute\AttributeInterface;
-use Schemantic\Attribute\DateTimeAttributeInterface;
-use Schemantic\Attribute\DateTimeFormat;
+use Schemantic\Attribute\Chrono\DateTimeAttributeInterface;
+use Schemantic\Attribute\Chrono\DateTimeFormat;
 use Schemantic\Attribute\Dump\DumpInterface;
-use Schemantic\Attribute\Group;
+use Schemantic\Attribute\Group\Always;
+use Schemantic\Attribute\Group\GroupAttribute;
+use Schemantic\Attribute\Group\Group;
 use Schemantic\Attribute\Parse\ParseInterface;
 use Schemantic\Attribute\Propagate;
 use Schemantic\Attribute\Validate\ValidateAttribute;
@@ -62,7 +65,7 @@ trait SchemaTrait
     {
         $group = $group ?? Group::DEFAULT_GROUP_NAME;
         $currentGroup = new Group($group);
-        $allGroups = [Group::DEFAULT_GROUP_NAME,];
+        $allGroups = [Group::DEFAULT_GROUP_NAME];
 
         foreach ((new ReflectionClass(static::class))->getAttributes() as $attr) {
             $attr = $attr->newInstance();
@@ -76,6 +79,8 @@ trait SchemaTrait
                 if ($attr->name == $group) {
                     $currentGroup = Group::merge($currentGroup, $attr);
                 }
+            } elseif ($attr instanceof Always) {
+                $currentGroup = Group::merge($currentGroup, $attr, override: true);
             } elseif ($group == Group::DEFAULT_GROUP_NAME) {
                 $currentGroup->addAttribute($attr);
             }
@@ -89,14 +94,16 @@ trait SchemaTrait
     }
 
     /**
-     * @param bool    $byAlias alias result array keys or not
-     * @param ?string $group   group of attributes
+     * @param bool    $byAlias        alias result array keys or not
+     * @param ?string $group          group of attributes
+     * @param bool    $throwOnMissing throw if there are no such group
      *
      * @return array<string,Group> field: attributes
      */
     private static function _getPropertiesAttributes(
         bool $byAlias = false,
         ?string $group = null,
+        bool $throwOnMissing = true,
     ): array {
         $group = $group ?? Group::DEFAULT_GROUP_NAME;
         $allGroups = [Group::DEFAULT_GROUP_NAME,];
@@ -119,23 +126,26 @@ trait SchemaTrait
                 if ($attr instanceof Group) {
                     $allGroups[] = $attr->name;
                     if ($attr->name == $group) {
-                        $paramGroup =  Group::merge($paramGroup, $attr);
-                        if ($byAlias && ($alias = $attr->getOne(Alias::class))) {
-                            $paramName = $alias->alias;
+                        $paramGroup = Group::merge($paramGroup, $attr);
+                        if ($byAlias && ($alias = $attr->getOne(AliasInterface::class, strict: false))) {
+                            $paramName = $alias->getAlias($paramName);
                         }
                     }
+                } elseif ($attr instanceof Always) {
+                    $paramGroup = Group::merge($paramGroup, $attr, override: true);
                 } elseif ($group == Group::DEFAULT_GROUP_NAME) {
-                    if ($byAlias & $attr instanceof Alias) {
-                        $paramName = $attr->alias;
+                    if ($byAlias && $attr instanceof AliasInterface) {
+                        $paramName = $attr->getAlias($paramName);
                     }
                     $paramGroup->addAttribute($attr);
                 }
             }
 
             $params[$paramName] = $paramGroup;
+
         }
 
-        if (!in_array($group, $allGroups)) {
+        if ($throwOnMissing && !in_array($group, $allGroups)) {
             throw new SchemaException(static::class . " - No such group: '$group'");
         }
 
@@ -150,10 +160,14 @@ trait SchemaTrait
     private static function _getAliases(?string $group): array
     {
         $aliases = [];
-        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
+        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group, throwOnMissing: false);
+        $schemaAttributes = self::_getSchemaAttributes(group: $group);
+        $aliasGenerator = $schemaAttributes->getOne(AliasGeneratorInterface::class, strict: false);
         foreach ($propertiesAttributes as $name => $attributes) {
-            if ($alias = $attributes->getOne(Alias::class)) {
-                $aliases[$name] = $alias->alias;
+            if ($alias = $attributes->getOne(AliasInterface::class, strict: false)) {
+                $aliases[$name] = $alias->getAlias($name);
+            } elseif ($aliasGenerator) {
+                $aliases[$name] = $aliasGenerator->getAlias($name); 
             }
         }
 
@@ -181,7 +195,7 @@ trait SchemaTrait
         ?string $group,
     ): array {
         $schemaAttributes = self::_getSchemaAttributes(group: $group);
-        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
+        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group, throwOnMissing: false);
 
         $propagated = [];
         $params = (new ReflectionMethod(static::class, '__construct'))->getParameters();
@@ -713,7 +727,12 @@ trait SchemaTrait
         }
 
         if ($validate) {
-            $schema->validate(throw: true, stopOnFail: false, group: $group);
+            $schema->validate(
+                throw: true,
+                stopOnFail: false,
+                group: $group,
+                byAlias: $byAlias
+            );
         }
 
         return $schema;
@@ -930,6 +949,63 @@ trait SchemaTrait
     }
 
     /**
+     * Returns all field aliases by groups
+     *
+     * @param string $field unaliased field name
+     *
+     * @return array<string,string> group => alias
+     */
+    public static function getFieldAliases(string $field): array
+    {
+        $reflection = new \ReflectionParameter([static::class, '__construct'], $field);
+        $aliases = [];
+        $alwaysAlias = null;
+        foreach ($reflection->getAttributes() as $attr) {
+            $instance = $attr->newInstance();
+
+            if ($instance instanceof Always) {
+                $alwaysAlias = $instance->getOne(AliasInterface::class, strict: false);
+            }
+
+            if ($instance instanceof AliasInterface || $instance instanceof GroupAttribute) {
+                if ($instance instanceof AliasInterface) {
+                    $aliases[Group::DEFAULT_GROUP_NAME] = $instance->getAlias($field);
+                    continue;
+                }
+
+                $alias = $instance->getOne(AliasInterface::class, strict: false);
+                if ($alias) {
+                    $aliases[$instance->name] = $alias->getAlias($field);
+                }
+            }
+        }
+
+        if ($alwaysAlias !== null) {
+            return array_fill_keys(array_keys($aliases), $alwaysAlias);
+        }
+
+        $class = new \ReflectionClass(static::class);
+        foreach ($class->getAttributes() as $attr) {
+            $instance = $attr->newInstance();
+
+            if ($instance instanceof AliasGeneratorInterface) {
+                if (!array_key_exists(Group::DEFAULT_GROUP_NAME, $aliases)) {
+                    $aliases[Group::DEFAULT_GROUP_NAME] = $instance->getAlias($field);
+                }
+            } elseif ($instance instanceof GroupAttribute) {
+                if (!array_key_exists($instance->name, $aliases)) {
+                    $alias = $instance->getOne(AliasGeneratorInterface::class, strict: false);
+                    if ($alias) {
+                        $aliases[$instance->name] = $alias->getAlias($field);
+                    }
+                }
+            }
+        }
+
+        return $aliases;
+    }
+
+    /**
      * Returns fields as associative array as-is
      *
      * @param bool    $byAlias apply field aliases
@@ -1090,7 +1166,12 @@ trait SchemaTrait
         $copy = new static(...array_values($fields)); // @phpstan-ignore-line
 
         if ($validate) {
-            $copy->validate(throw: true, stopOnFail: false, group: $group);
+            $copy->validate(
+                throw: true,
+                stopOnFail: false,
+                group: $group,
+                byAlias: $byAlias,
+            );
         }
 
         return $copy;
@@ -1102,6 +1183,7 @@ trait SchemaTrait
      * @param bool    $throw      thow ValidationException instead of returning `false`
      * @param bool    $stopOnFail stop on first failed check
      * @param bool    $getFails   return bool result or array or fails
+     * @param bool    $byAlias    use field aliases in error message
      * @param ?string $group      group of attributes
      *
      * @return ($getFails is true ? array<string,array> : bool)
@@ -1112,6 +1194,7 @@ trait SchemaTrait
         bool $throw = false,
         bool $stopOnFail = false,
         bool $getFails = false,
+        bool $byAlias = true,
         ?string $group = null,
     ): array|bool {
         $failed = [];
@@ -1123,7 +1206,7 @@ trait SchemaTrait
 
             foreach ($fieldValidations as $validation) {
                 if (!$validation->check($field, $this)) {
-                    $failed[$name][]= $validation->getErrorMessage($field);
+                    $failed[$name][]= $validation->getErrorMessage($field, $this, $byAlias, $group);
                     if ($stopOnFail) {
                         $break = true;
                         break;
@@ -1135,7 +1218,13 @@ trait SchemaTrait
             }
 
             if ($field instanceof SchemaInterface) {
-                $fieldFails = $field->validate(throw: $throw, stopOnFail: $stopOnFail, getFails: true, group: $group);
+                $fieldFails = $field->validate(
+                    throw: $throw,
+                    stopOnFail: $stopOnFail,
+                    getFails: true,
+                    byAlias: $byAlias,
+                    group: $group
+                );
                 if ($fieldFails) {
                     foreach ($fieldFails as $fail) {
                         $failed[$name][] = $fail;
@@ -1152,7 +1241,13 @@ trait SchemaTrait
 
             if (is_array($field) && !empty($field) && end($field) instanceof SchemaInterface) {
                 foreach ($field as $key => $val) {
-                    $valFails = $val->validate(throw: $throw, stopOnFail: $stopOnFail, getFails: true, group: $group);
+                    $valFails = $val->validate(
+                        throw: $throw,
+                        stopOnFail: $stopOnFail,
+                        getFails: true,
+                        byAlias: $byAlias,
+                        group: $group
+                    );
                     if ($valFails) {
                         foreach ($valFails as $fail) {
                             $failed[$name][$key][] = $fail;
@@ -1169,12 +1264,13 @@ trait SchemaTrait
             }
         }
 
+        if ($byAlias) {
+            $aliases = self::_applyAlias(array_keys($failed), group: $group);
+            $failed = array_combine($aliases, $failed);
+        }
+
         if ($failed && $throw) {
-            throw new ValidationException(
-                static::class .
-                " - Validation for field(s) `" . implode('`, `', array_keys($failed)) . "` failed:\n" .
-                json_encode($failed, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
-            );
+            throw new ValidationException($failed);
         }
 
         if ($getFails) {
@@ -1246,7 +1342,7 @@ trait SchemaTrait
                     parse: $parse,
                     group: $group,
                 );
-                if ($schema->validate(throw: false, stopOnFail: true, group: $group)) {
+                if ($schema->validate(throw: false, stopOnFail: true, group: $group, byAlias: $byAlias)) {
                     $result[$rowindex] = $schema;
                 }
                 if ($reduce) {
@@ -1262,7 +1358,7 @@ trait SchemaTrait
                     parse: $parse,
                     group: $group,
                 );
-                if (!$schema->validate(throw: false, stopOnFail: true, group: $group)) {
+                if (!$schema->validate(throw: false, stopOnFail: true, group: $group, byAlias: $byAlias)) {
                     $result[$rowindex] = $schema;
                 }
                 if ($reduce) {

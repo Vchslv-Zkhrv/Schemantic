@@ -4,7 +4,7 @@
 namespace Schemantic\Tests\Objects;
 
 use Schemantic\Attribute\ArrayOf;
-use Schemantic\Attribute\DateTimeFormat;
+use Schemantic\Attribute\Chrono\DateTimeFormat;
 use Schemantic\Schema;
 
 class WeatherForecast extends Schema

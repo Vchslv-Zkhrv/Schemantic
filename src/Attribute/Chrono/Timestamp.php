@@ -1,6 +1,6 @@
 <?php
 
-namespace Schemantic\Attribute;
+namespace Schemantic\Attribute\Chrono;
 
 use Attribute;
 use DateTime;
@@ -11,6 +11,7 @@ use ReflectionParameter;
 use ReflectionProperty;
 use ReflectionType;
 use ReflectionUnionType;
+use Schemantic\Exception\DateParsingException;
 use Schemantic\Exception\DumpingException;
 use Schemantic\Exception\SchemaException;
 
@@ -18,7 +19,7 @@ use Schemantic\Exception\SchemaException;
  * Use to mark datetime field as timestamp
  *
  * @category Library
- * @package  Schemantic\Attribute
+ * @package  Schemantic\Attribute\Chrono
  * @author   Vyacheslav Zakharov <vchslv.zkhrv@gmail.com>
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
@@ -79,6 +80,7 @@ class Timestamp implements DateTimeAttributeInterface
         ReflectionClass $schema,
         ReflectionProperty|ReflectionParameter $field
     ) {
+        $originalValue = $value;
         $type = $field->getType();
         $class = DateTimeImmutable::class;
         if ($type instanceof ReflectionUnionType) {
@@ -102,9 +104,11 @@ class Timestamp implements DateTimeAttributeInterface
             $class = DateTimeImmutable::class;
         }
 
+        $result = false;
+
         if ($this->precision == 0) {
             $value = (int)$value;
-            return $class::createFromFormat(
+            $result = $class::createFromFormat(
                 'Y-m-d H:i:s',
                 (new DateTime())->setTimestamp($value)->format('Y-m-d H:i:s')
             );
@@ -119,10 +123,21 @@ class Timestamp implements DateTimeAttributeInterface
                 $microseconds = substr((string)$value, 0-$this->precision);
             }
             $microseconds = str_pad($microseconds, 6, '0', STR_PAD_RIGHT);
-            return $class::createFromFormat(
+
+            $result = $class::createFromFormat(
                 'Y-m-d H:i:s.u',
                 (new DateTime())->setTimestamp((int)$timestamp)->format('Y-m-d H:i:s.') . $microseconds
             );
         }
+
+        if (!$result instanceof $class) {
+            throw new DateParsingException(
+                "Cannot parse timestamp " . var_export($originalValue, true) .
+                " as $class with precision=$this->precision" .
+                ($this->asFloat ? ' as float' : '')
+            );
+        }
+
+        return $result;
     }
 }

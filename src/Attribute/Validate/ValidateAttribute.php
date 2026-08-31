@@ -2,7 +2,7 @@
 
 namespace Schemantic\Attribute\Validate;
 
-use Schemantic\Attribute\RepetitiveAttributeInterface;
+use Schemantic\Attribute\Group\RepetitiveAttributeInterface;
 use Schemantic\SchemaInterface;
 
 /**
@@ -64,9 +64,17 @@ abstract class ValidateAttribute implements RepetitiveAttributeInterface
     /**
      * Generates error pretty string implementation
      *
-     * @param T $value property value
+     * @param T               $value   property value
+     * @param SchemaInterface $schema  schema instance
+     * @param bool            $byAlias use field aliases in error message
+     * @param ?string         $group   attribute group name
      *
      * @return string
      */
-    abstract public function getErrorMessage($value): string;
+    abstract public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group,
+    ): string;
 }

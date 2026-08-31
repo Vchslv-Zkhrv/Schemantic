@@ -16,7 +16,7 @@ class SchemaWithJSONs extends Schema
     public function __construct(
         public readonly int $id,
 
-        #[Group('jsonValue', new Parse\JSON, new Dump\JSON)]
+        #[Group\Group('jsonValue', new Parse\JSON, new Dump\JSON)]
         public readonly array $value,
     ) {
     }

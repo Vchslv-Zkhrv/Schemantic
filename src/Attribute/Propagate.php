@@ -3,6 +3,7 @@
 namespace Schemantic\Attribute;
 
 use Attribute;
+use Schemantic\Attribute\Group\SingleAttributeInterface;
 
 /**
  * Propagate property value to nested subchemas and arrays

@@ -31,8 +31,12 @@ class NotNull extends ValidateAttribute
         return $value !== null;
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         return "NULL";
     }
 }

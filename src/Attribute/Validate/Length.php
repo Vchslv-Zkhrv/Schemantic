@@ -37,8 +37,12 @@ class Length extends ValidateAttribute
         return $len >= $this->min && $len <= $this->max;
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         $len = is_array($value) ? count($value) : strlen($value);
         return "$this->min <= len({$this->stringify($value)})=$len <= $this->max";
     }

@@ -1,9 +1,9 @@
 <?php
 
-namespace Schemantic\Attribute;
+namespace Schemantic\Attribute\Group;
 
 /**
- * Attribute that can be grouped
+ * Repetative attribute (attribute that can be declared twice within a group)
  *
  * @category Library
  * @package  Schemantic\Attribute
@@ -11,6 +11,6 @@ namespace Schemantic\Attribute;
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
-interface GroupingAttributeInterface extends AttributeInterface
+interface RepetitiveAttributeInterface extends GroupingAttributeInterface
 {
 }

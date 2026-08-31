@@ -36,8 +36,12 @@ class Plain extends ValidateAttribute
         return true;
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         return "{$this->stringify($value)} has nested arrays";
     }
 }

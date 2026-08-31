@@ -3,6 +3,7 @@
 namespace Schemantic\Attribute;
 
 use Attribute;
+use Schemantic\Attribute\Group\SingleAttributeInterface;
 use Schemantic\SchemaInterface;
 
 /**

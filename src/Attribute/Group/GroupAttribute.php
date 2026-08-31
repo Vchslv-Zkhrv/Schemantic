@@ -1,26 +1,23 @@
 <?php
 
-namespace Schemantic\Attribute;
+namespace Schemantic\Attribute\Group;
 
-use Attribute;
+use Schemantic\Attribute\AttributeInterface;
 use Schemantic\Exception\SchemaException;
 
 /**
- * Group of attributes
+ * Abstract class for grouping attributes
  *
  * Ungrouped attributes will be joined implicitly to `default` group
  *
  * @category Library
- * @package  Schemantic\Attribute
+ * @package  Schemantic\Attribute\Group
  * @author   Vyacheslav Zakharov <vchslv.zkhrv@gmail.com>
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
-#[Attribute(Attribute::TARGET_PARAMETER|Attribute::TARGET_PROPERTY|Attribute::TARGET_CLASS|Attribute::IS_REPEATABLE)]
-class Group implements AttributeInterface
+abstract class GroupAttribute implements AttributeInterface
 {
-    const DEFAULT_GROUP_NAME = 'default';
-
     /**
      * @var array<class-string<SingleAttributeInterface>, SingleAttributeInterface>
      */
@@ -32,17 +29,14 @@ class Group implements AttributeInterface
     protected array $repetitive;
 
     /**
-     * Group constructor
+     * GroupAttribute constructor
      *
-     * @param string                       $name          group name. Groups with same name will be merged
      * @param GroupingAttributeInterface[] ...$attributes attributes in group. No more than one of each class
      *
      * @throws SchemaException
      */
-    public function __construct(
-        public readonly string $name,
-        GroupingAttributeInterface ...$attributes
-    ) {
+    public function __construct(GroupingAttributeInterface ...$attributes)
+    {
         $this->single = [];
         $this->repetitive = [];
 
@@ -103,17 +97,19 @@ class Group implements AttributeInterface
     /**
      * Add attribute to group
      *
-     * @param GroupingAttributeInterface $attr attribute to add
+     * @param GroupingAttributeInterface $attr     attribute to add
+     * @param bool                       $override replace duplicate single attributes
      *
      * @return void
      */
-    public function addAttribute(GroupingAttributeInterface $attr): void
-    {
+    public function addAttribute(
+        GroupingAttributeInterface $attr,
+        bool $override = false,
+    ): void {
         if ($attr instanceof SingleAttributeInterface) {
-            if (isset($this->single[$attr::class])) {
+            if (!$override && isset($this->single[$attr::class])) {
                 throw new SchemaException("Cannot group repetative attributes of class " . $attr::class);
             }
-
             $this->single[$attr::class] = $attr;
         } elseif ($attr instanceof RepetitiveAttributeInterface) {
             $this->repetitive[$attr::class][] = $attr;
@@ -144,57 +140,6 @@ class Group implements AttributeInterface
     public function allRepetitive(): array
     {
         return $this->repetitive;
-    }
-
-    /**
-     * Create deafult group
-     *
-     * @return static
-     */
-    public static function default(): static
-    {
-        return new static(static::DEFAULT_GROUP_NAME);
-    }
-
-    /**
-     * Check if grop is default
-     *
-     * @return bool
-     */
-    public function isDefault(): bool
-    {
-        return $this->name == static::DEFAULT_GROUP_NAME;
-    }
-
-    /**
-     * Merge two groups
-     *
-     * @param Group   $group     group
-     * @param Group[] ...$groups groups
-     *
-     * @return static new group
-     */
-    public static function merge(
-        Group $group,
-        Group ...$groups,
-    ): static {
-        $merged = new Group($group->name);
-
-        foreach ($groups as $g) {
-            if ($g->name != $merged->name) {
-                throw new SchemaException("Cannot merge groups with different names '$merged->name' and '$g->name'");
-            }
-            foreach ($g->allSingle() as $attr) {
-                $merged->addAttribute($attr);
-            }
-            foreach ($g->allRepetitive() as $attrs) {
-                foreach ($attrs as $attr) {
-                    $merged->addAttribute($attr);
-                }
-            }
-        }
-
-        return $merged;
     }
 
     /**

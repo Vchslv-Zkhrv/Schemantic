@@ -19,4 +19,14 @@ namespace Schemantic;
 abstract class Schema implements SchemaInterface
 {
     use SchemaTrait;
+
+    /**
+     * Schema constructor.
+     *
+     * You do not have to call `parent::__construct()` if you do not want to initiate validation.
+     */
+    public function __construct()
+    {
+        $this->validate(throw: true, stopOnFail: false);
+    }
 }

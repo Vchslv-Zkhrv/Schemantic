@@ -64,8 +64,12 @@ class Validator extends ValidateAttribute
         return $validator($value);
     }
 
-    public function getErrorMessage($value): string
-    {
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
         return $this->errorMessage ?: "{$this->method}({$this->stringify($value)})";
     }
 }

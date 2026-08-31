@@ -33,8 +33,12 @@ class HasNo extends ValidateAttribute
         return !in_array($this->value, $value);
     }
 
-    public function getErrorMessage($value): string
-    {
-        return "{$this->stringify($this->value)} ∈ {$this->stringify($value)}";
+    public function getErrorMessage(
+        $value,
+        SchemaInterface $schema,
+        bool $byAlias,
+        ?string $group
+    ): string {
+        return "{$this->stringify($this->value)} has {$this->stringify($value)}";
     }
 }

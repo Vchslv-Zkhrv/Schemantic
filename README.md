@@ -16,6 +16,7 @@ Schemas:
 ```php
 use Schemantic\Attribute\ArrayOf;
 use Schemantic\Attribute\Validate;
+use Schemantic\Attribute\Chrono;
 use Schemantic\Attribute\Alias;
 use Schemantic\Schema;
 
@@ -26,7 +27,7 @@ class Tag extends Schema
         public readonly int $id,
 
         #[Validate\NotEmpty]
-        #[Alias('name')]
+        #[Alias\Alias('name')]
         public readonly stirng $title,
 
         #[Validate\Validator(ValidateHelper::class, 'validateColor')]
@@ -44,10 +45,10 @@ class Product extends Schema
 
         public readonly string $name,
 
-        #[Timestamp]
+        #[Chrono\Timestamp]
         public readonly \DateTimeImmutable $createdAt,
 
-        #[Timestamp]
+        #[Chrono\Timestamp]
         public readonly ?\DateTimeImmutable $deletedAt = null,
 
         #[Validate\GreaterThan(0)]

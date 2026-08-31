@@ -1,6 +1,6 @@
 <?php
 
-namespace Schemantic\Attribute;
+namespace Schemantic\Attribute\Chrono;
 
 use Attribute;
 use DateTimeImmutable;
@@ -17,7 +17,7 @@ use Schemantic\Exception\DumpingException;
  * Use to set a date/time format
  *
  * @category Library
- * @package  Schemantic\Attribute
+ * @package  Schemantic\Attribute\Chrono
  * @author   Vyacheslav Zakharov <vchslv.zkhrv@gmail.com>
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic

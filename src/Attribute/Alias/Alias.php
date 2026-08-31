@@ -1,6 +1,6 @@
 <?php
 
-namespace Schemantic\Attribute;
+namespace Schemantic\Attribute\Alias;
 
 use Attribute;
 
@@ -8,20 +8,25 @@ use Attribute;
  * Use to set a `__construct` param alias
  *
  * @category Library
- * @package  Schemantic\Attribute
+ * @package  Schemantic\Attribute\Alias
  * @author   Vyacheslav Zakharov <vchslv.zkhrv@gmail.com>
  * @license  opensource.org/license/mit MIT
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PARAMETER|Attribute::TARGET_PROPERTY)]
-class Alias implements SingleAttributeInterface
+class Alias implements AliasInterface
 {
     /**
-     * Alias constructor. Last applied attribute value will be used al alias
+     * Alias constructor
      *
      * @param string $alias alternative name for this field
      */
     public function __construct(public readonly string $alias)
     {
+    }
+
+    public function getAlias(string $name): string
+    {
+        return $this->alias;
     }
 }

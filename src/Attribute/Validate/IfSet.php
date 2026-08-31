@@ -3,10 +3,11 @@
 namespace Schemantic\Attribute\Validate;
 
 use Attribute;
+use Schemantic\Attribute\Group\Group;
 use Schemantic\SchemaInterface;
 
 /**
- * Use to check if the property value does not belong to a set
+ * Use to mark that field can be filled only if another was
  *
  * @extends ValidateAttribute<mixed>
  *
@@ -17,20 +18,24 @@ use Schemantic\SchemaInterface;
  * @link     github.com/Vchslv-Zkhrv/Schemantic
  */
 #[Attribute(Attribute::TARGET_PROPERTY|Attribute::TARGET_PARAMETER|Attribute::IS_REPEATABLE)]
-class NotIn extends ValidateAttribute
+class IfSet extends ValidateAttribute
 {
     /**
-     * NotIn constructor
+     * IfSet constructor
      *
-     * @param mixed[] $set unacceptable values
+     * @param string $field name (unaliased) of required field
      */
-    public function __construct(public readonly array $set)
+    public function __construct(public readonly string $field)
     {
     }
 
     public function check($value, SchemaInterface $schema): bool
     {
-        return !in_array($value, $this->set);
+        if (empty($value)) {
+            return true;
+        }
+
+        return $schema->{$this->field} !== null;
     }
 
     public function getErrorMessage(
@@ -39,6 +44,13 @@ class NotIn extends ValidateAttribute
         bool $byAlias,
         ?string $group
     ): string {
-        return "{$this->stringify($value)} in {$this->stringify($this->set)}";
+        $name = $this->field;
+        if ($byAlias) {
+            $aliases = $schema::getFieldAliases($this->field);
+            $group = $group ?? Group::DEFAULT_GROUP_NAME;
+            $name = $aliases[$group] ?? $this->field;
+        }
+
+        return "field `$name` is empty";
     }
 }
