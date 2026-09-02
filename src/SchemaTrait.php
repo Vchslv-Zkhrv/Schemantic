@@ -197,8 +197,31 @@ trait SchemaTrait
         $schemaAttributes = self::_getSchemaAttributes(group: $group);
         $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group, throwOnMissing: false);
 
-        $propagated = [];
         $params = (new ReflectionMethod(static::class, '__construct'))->getParameters();
+
+        // at first, collect propagated values
+        $propagated = [];
+        foreach ($params as $param) {
+            $name = $param->getName();
+
+            if (array_key_exists($name, $raw)) {
+                $value = $raw[$name];
+            } elseif ($param->isOptional()) {
+                $value = $param->getDefaultValue();
+                $raw[$name] = $value;
+                continue;
+            } else {
+                throw new SchemaException(static::class ." - No value provided for required field `$name`");
+            }
+
+            $attributes = $propertiesAttributes[$name];
+
+            $propagateAttribute = $attributes->getOne(Propagate::class);
+            if ($propagateAttribute) {
+                $propagated[$name] = $value;
+            }
+        }
+
         foreach ($params as $param) {
             $name = $param->getName();
 
@@ -214,11 +237,6 @@ trait SchemaTrait
 
             $attributes = $propertiesAttributes[$name];
             $arrayOfAttribute = $attributes->getOne(ArrayOf::class);
-
-            $propagateAttribute = $attributes->getOne(Propagate::class);
-            if ($propagateAttribute) {
-                $propagated[$name] = $value;
-            }
 
             if (is_array($value) && !array_key_exists($name, $propagated) && !array_is_list($value)) {
                 $value = array_merge($propagated, $value);
