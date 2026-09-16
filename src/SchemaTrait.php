@@ -1257,8 +1257,11 @@ trait SchemaTrait
                 break;
             }
 
-            if (is_array($field) && !empty($field) && end($field) instanceof SchemaInterface) {
+            if (is_array($field) && !empty($field)) {
                 foreach ($field as $key => $val) {
+                    if (!$val instanceof SchemaInterface) {
+                        continue;
+                    }
                     $valFails = $val->validate(
                         throw: $throw,
                         stopOnFail: $stopOnFail,
