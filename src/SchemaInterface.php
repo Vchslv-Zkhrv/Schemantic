@@ -71,6 +71,7 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
      * @param array<string,mixed> $extra    Additional fields (not aliased). Can override object fields
      * @param bool                $byAlias  use aliases to parse or not
      * @param bool                $validate process validations after parsing or not
+     * @param bool                $parse    parse primitive types
      * @param ?string             $group    group of attributes
      *
      * @return static
@@ -82,6 +83,7 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
         array $extra = [],
         bool $byAlias = false,
         bool $validate = true,
+        bool $parse = false,
         ?string $group = null,
     ): static;
 
