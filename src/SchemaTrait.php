@@ -869,7 +869,7 @@ trait SchemaTrait
     ): array {
         $array = [];
         $schemaAttributes = self::_getSchemaAttributes(group: $group);
-        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group);
+        $propertiesAttributes = self::_getPropertiesAttributes(byAlias: false, group: $group, throwOnMissing: false);
 
         $constructParams = (new ReflectionMethod(static::class, '__construct'))->getParameters();
         $constructParams = array_combine(
