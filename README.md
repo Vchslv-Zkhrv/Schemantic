@@ -2,14 +2,36 @@
 
 Recursively parsing PHP structures. Pure PHP 8.1+, no dependencies
 
+## Features:
+
+- __Recursive__ sub-structures parsing (and arrays of sub-structures)
+- Custom field __validation__, __parsing__ and __dumping__ via attributes
+- Pre-defined fields validations
+- Fields aliases
+- ORM integration
+- JSON parsing
+- Enum dump & parsing
+
+
+## Supported types:
+
+1. built-in PHP types
+2. DateTimeInterface
+3. UnitEnum and BackedEnum
+4. Sub-schemas
+5. Arrays of types above
+6. Nullable types
+7. Union types
+
+
 ## Installation
 
 ```
 composer require schemantic/schemantic
 ```
 
-## Simple example
 
+## Simple example
 
 Schemas:
 
@@ -28,7 +50,7 @@ class Tag extends Schema
 
         #[Validate\NotEmpty]
         #[Alias\Alias('name')]
-        public readonly stirng $title,
+        public readonly string $title,
 
         #[Validate\Validator(ValidateHelper::class, 'validateColor')]
         public readonly ?string $color,
@@ -106,44 +128,23 @@ $rows = Product::fromJSONMultiple($data, validate: 'exclude');
 ```php
 $model = new \App\Models\Product();  // Laravel model / Doctrine Entity
 
-// Update any object fields with an direct assignment and calling setters (::setName(), setPublic()). Virtual setters included
-$schema = ...;
+// Update any object fields with an direct assignment and calling setters (::setName(), setPublic()).
+// Virtual setters included
+$schema = /* ... */;
 $schema->updateObject($model);
 ```
 
 ```php
-$model = ...;  // Laravel model / Doctrine Entity
+$model = /* ... */;  // Laravel model / Doctrine Entity
 
-// Read any object fields with direct access and calling getters (::getName(), ::getPublic()). Virtual getter included
+// Read any object fields with direct access and calling getters (::getName(), ::getPublic()).
+// Virtual getters included
 $schema = Product::fromObject($model);
 ```
 
 ```php
-$schema = ...;
+$schema = /* ... */;
 
 // Pass __construct params & set other properties after construction if needed
 $model = Product::buildObject(\App\Models\Product::class);
 ```
-
-
-
-## Features:
-
-- __Recursive__ sub-structures parsing (and arrays of sub-structures)
-- Custom field __validation__, __parsing__ and __dumping__ via attributes
-- Pre-defined fields validations
-- Fields aliases
-- ORM integration
-- JSON parsing
-- Enum dump & parsing
-
-
-## Supported types:
-
-1. built-in PHP types
-2. DateTimeInterface
-3. UnitEnum and BackedEnum
-4. Sub-schemas
-5. Arrays of types above
-6. Nullable types
-7. Union types
