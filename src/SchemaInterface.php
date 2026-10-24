@@ -261,39 +261,6 @@ interface SchemaInterface extends \JsonSerializable, \Stringable
     ): array;
 
     /**
-     * Writes php-valid cache
-     *
-     * @param string  $file  file path
-     * @param ?string $group group of attributes
-     *
-     * @return void
-     */
-    public function writeCache(
-        string $file,
-        ?string $group = null,
-    ): void;
-
-    /**
-     * Reads php cache (builded with writeCache or var_export)
-     *
-     * @param string  $file     file path
-     * @param bool    $byAlias  use aliases to parse or not
-     * @param bool    $validate process validations after parsing or not
-     * @param ?string $group    group of attributes
-     *
-     * @return static
-     *
-     * @throws ValidationException
-     * @throws ParsingException
-     */
-    public static function readCache(
-        string $file,
-        bool $byAlias = true,
-        bool $validate = true,
-        ?string $group = null,
-    ): static;
-
-    /**
      * Creates copy with applied updates.
      * Use empty updates to create identical copy
      *

@@ -1089,66 +1089,13 @@ trait SchemaTrait
     }
 
     /**
-     * Writes php-valid cache
-     *
-     * @param string  $file  file path
-     * @param ?string $group group of attributes
-     *
-     * @return void
-     */
-    public function writeCache(
-        string $file,
-        ?string $group = null,
-    ): void {
-        $export = var_export(
-            $this->toArray(
-                skipNulls: false,
-                byAlias: false,
-                dump: false,
-                group: $group,
-            ),
-            true
-        );
-
-        file_put_contents($file, "<?php\n\nreturn $export;");
-    }
-
-    /**
-     * Reads php cache (builded with writeCache or var_export)
-     *
-     * @param string  $file     file path
-     * @param bool    $byAlias  use aliases to parse or not
-     * @param bool    $validate process validations after parsing or not
-     * @param ?string $group    group of attributes
-     *
-     * @return static
-     *
-     * @throws ValidationException
-     * @throws ParsingException
-     */
-    public static function readCache(
-        string $file,
-        bool $byAlias = true,
-        bool $validate = true,
-        ?string $group = null,
-    ): static {
-        return static::fromArray(
-            raw: include $file,
-            byAlias: $byAlias,
-            validate: $validate,
-            parse: true,
-            group: $group,
-        );
-    }
-
-    /**
      * Same as toArray()
      *
      * @return array
      */
     public function jsonSerialize(): mixed
     {
-        return $this->toArray(dump:true, byAlias:true);
+        return $this->toArray(dump: true, byAlias: true);
     }
 
     /**
@@ -1226,7 +1173,7 @@ trait SchemaTrait
 
             foreach ($fieldValidations as $validation) {
                 if (!$validation->check($field, $this)) {
-                    $failed[$name][]= $validation->getErrorMessage($field, $this, $byAlias, $group);
+                    $failed[$name][] = $validation->getErrorMessage($field, $this, $byAlias, $group);
                     if ($stopOnFail) {
                         $break = true;
                         break;
